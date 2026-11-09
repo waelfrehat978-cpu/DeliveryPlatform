@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/docs/">
+    <File Path="api-guidelines.md" />
+  </Folder>
+  <Project Path="DeliveryPlatform.Api/DeliveryPlatform.Api.csproj" />
+  <Project Path="DeliveryPlatform.Data/DeliveryPlatform.Data.csproj" />
+  <Project Path="DeliveryPlatform.Service/DeliveryPlatform.Service.csproj" />
+</Solution>
