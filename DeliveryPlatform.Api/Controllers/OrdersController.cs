@@ -1,7 +1,7 @@
 ﻿using DeliveryPlatform.Service.DTOs.Orders;
 using DeliveryPlatform.Service.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-
+using System.ComponentModel.DataAnnotations;
 namespace DeliveryPlatform.Api.Controllers
 {
     [ApiController]
@@ -37,12 +37,12 @@ namespace DeliveryPlatform.Api.Controllers
             return Ok(result);
         }
 
-    
-        [HttpGet("customer/{customerId:int}")]
+
+        [HttpGet]
         public async Task<IActionResult> GetCustomerOrders(
-            int customerId,
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10)
+     [FromQuery, Range(1, int.MaxValue)] int customerId,
+     [FromQuery, Range(1, int.MaxValue)] int page = 1,
+     [FromQuery, Range(1, 100)] int pageSize = 10)
         {
             var result = await _orderService.GetCustomerOrdersAsync(
                 customerId,

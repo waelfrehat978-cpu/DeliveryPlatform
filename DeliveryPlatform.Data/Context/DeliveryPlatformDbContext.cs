@@ -17,7 +17,7 @@ public class DeliveryPlatformDbContext : DbContext
 
     public DbSet<Store> Stores => Set<Store>();
 
-    public DbSet<Category> Categories => Set<Category>();
+    public DbSet<Category> Category => Set<Category>();
 
     public DbSet<Product> Products => Set<Product>();
 
@@ -41,7 +41,7 @@ public class DeliveryPlatformDbContext : DbContext
     public DbSet<OrderLineOption> OrderLineOptions
         => Set<OrderLineOption>();
 
-    public DbSet<OrderStatusHistory> OrderStatusHistories
+    public DbSet<OrderStatusHistory> OrderStatusHistory
         => Set<OrderStatusHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

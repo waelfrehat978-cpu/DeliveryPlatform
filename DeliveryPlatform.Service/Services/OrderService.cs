@@ -1,72 +1,75 @@
-﻿using System.Data;
-using DeliveryPlatform.Data.Context;
+﻿using DeliveryPlatform.Data.Context;
 using DeliveryPlatform.Data.Entities;
 using DeliveryPlatform.Data.Enums;
+using DeliveryPlatform.Service.DTOs;
+using DeliveryPlatform.Service.DTOs.Addresses;
 using DeliveryPlatform.Service.DTOs.Orders;
-using DeliveryPlatform.Service.Interfaces;
-using Microsoft.EntityFrameworkCore;
 using DeliveryPlatform.Service.Exceptions;
+using DeliveryPlatform.Service.Interfaces;
+using DeliveryPlatform.Service.Options;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using System.Data;
 
 namespace DeliveryPlatform.Service.Services
 {
     public class OrderService : IOrderService
-    {
+ 
+   {
+        private static int _orderCounter = 0;
         private readonly DeliveryPlatformDbContext _context;
+        private readonly OrderOptions _orderOptions;
 
-        public OrderService(DeliveryPlatformDbContext context)
+        public OrderService(
+            DeliveryPlatformDbContext context,
+            IOptions<OrderOptions> orderOptions)
         {
             _context = context;
+            _orderOptions = orderOptions.Value;
         }
 
-        private static readonly Dictionary<OrderStatus, OrderStatus[]>
-            AllowedTransitions = new()
+
+        private static readonly Dictionary<OrderStatus, OrderStatus[]> AllowedTransitions = new()
+        {
+            [OrderStatus.Pending] = new[]
             {
-                {
-                    OrderStatus.Pending,
-                    new[]
-                    {
-                        OrderStatus.Accepted,
-                        OrderStatus.Declined,
-                        OrderStatus.Cancelled
-                    }
-                },
-                {
-                    OrderStatus.Accepted,
-                    new[]
-                    {
-                        OrderStatus.Preparing,
-                        OrderStatus.Cancelled
-                    }
-                },
-                {
-                    OrderStatus.Preparing,
-                    new[]
-                    {
-                        OrderStatus.OutForDelivery
-                    }
-                },
-                {
-                    OrderStatus.OutForDelivery,
-                    new[]
-                    {
-                        OrderStatus.Delivered
-                    }
-                }
-            };
+        OrderStatus.Accepted,
+        OrderStatus.Declined
+    },
+
+            [OrderStatus.Accepted] = new[]
+            {
+        OrderStatus.Preparing,
+        OrderStatus.Declined
+    },
+
+            [OrderStatus.Preparing] = new[]
+            {
+        OrderStatus.OutForDelivery,
+        OrderStatus.Declined
+    },
+
+            [OrderStatus.OutForDelivery] = new[]
+            {
+        OrderStatus.Delivered,
+        OrderStatus.Cancelled
+    }
+        };
+
 
         // Create Order
         public async Task<OrderResponseDto> CreateOrderAsync(
             CreateOrderDto request)
         {
             if (request.Items == null || !request.Items.Any())
-                throw new ValidationException(
+                throw new ValidationException("Items",
                     "Order must contain at least one item.");
 
             if (!Enum.IsDefined(typeof(PaymentMethod), request.PaymentMethod))
-                throw new ValidationException("Invalid payment method.");
+                throw new ValidationException("PaymentMethod", "Invalid payment method.");
 
             if (request.Items.Any(i => i.ProductId <= 0))
-                throw new ValidationException(
+                throw new ValidationException("Items",
                     "Product ID must be greater than zero.");
 
             var productIds = request.Items
@@ -74,7 +77,7 @@ namespace DeliveryPlatform.Service.Services
                 .ToList();
 
             if (productIds.Distinct().Count() != productIds.Count)
-                throw new ValidationException(
+                throw new ValidationException("Items",
                     "Duplicate products are not allowed.");
 
             await using var transaction =
@@ -97,17 +100,14 @@ namespace DeliveryPlatform.Service.Services
                     throw new NotFoundException(
                         "Store not found.");
 
-                if (request.AddressId.HasValue)
-                {
-                    var addressExists = await _context.Addresses
-                        .AnyAsync(a =>
-                            a.Id == request.AddressId.Value &&
-                            a.CustomerId == request.CustomerId);
+                var addressExists = await _context.Addresses
+      .AnyAsync(a =>
+          a.Id == request.AddressId &&
+          a.CustomerId == request.CustomerId);
 
-                    if (!addressExists)
-                        throw new NotFoundException(
-                            "Address not found.");
-                }
+                if (!addressExists)
+                    throw new NotFoundException(
+                        $"Address {request.AddressId} was not found for customer {request.CustomerId}.");
 
                 var products = await _context.Products
                     .Where(p =>
@@ -133,12 +133,15 @@ namespace DeliveryPlatform.Service.Services
                     subtotal += product.Price * item.Quantity;
                 }
 
-                decimal deliveryFee = 0;
+                decimal deliveryFee = _orderOptions.DeliveryFee;
+                var date = DateTime.UtcNow;
 
+                var randomNumber = Random.Shared.Next(0, 100_000);
+
+                var counter = Interlocked.Increment(ref _orderCounter) % 1000;
                 var order = new Order
                 {
-                    OrderCode = Guid.NewGuid()
-                        .ToString("N")[..12].ToUpper(),
+                    OrderCode = $"{date:yyMM}{randomNumber:D5}{counter:D3}",
 
                     CustomerId = request.CustomerId,
                     StoreId = request.StoreId,
@@ -169,12 +172,12 @@ namespace DeliveryPlatform.Service.Services
 
                 _context.Orders.Add(order);
 
-                _context.OrderStatusHistories.Add(
+                _context.OrderStatusHistory.Add(
                     new OrderStatusHistory
                     {
                         Order = order,
                         Status = OrderStatus.Pending,
-                        ChangedAtUtc = DateTime.UtcNow,
+                        OldStatus = null,
                         Note = "Order created."
                     });
 
@@ -192,41 +195,100 @@ namespace DeliveryPlatform.Service.Services
         }
 
         // Get Order By Id
-        public async Task<OrderResponseDto> GetOrderByIdAsync(
-            int orderId)
+        public async Task<OrderDetailsDto> GetOrderByIdAsync(int orderId)
         {
             if (orderId <= 0)
                 throw new ValidationException(
+                    "orderId",
                     "Order ID must be greater than 0.");
+
             var order = await _context.Orders
+                .AsNoTracking()
+                .Include(o => o.Customer)
+                .Include(o => o.Store)
+                .Include(o => o.Address)
                 .Include(o => o.OrderLines)
+                .Include(o => o.StatusHistory)
                 .FirstOrDefaultAsync(o => o.Id == orderId);
 
             if (order == null)
                 throw new NotFoundException(
-                    "Order not found.");
+                    $"Order {orderId} was not found.");
 
-            return MapOrderToResponse(order);
+            return new OrderDetailsDto
+            {
+                Id = order.Id,
+                OrderCode = order.OrderCode,
+                CreatedAtUtc = order.CreatedAtUtc,
+                Status = order.Status,
+                PaymentMethod = order.PaymentMethod,
+                Subtotal = order.Subtotal,
+                DeliveryFee = order.DeliveryFee,
+                Total = order.Total,
+
+                CustomerId = order.CustomerId,
+                CustomerName = $"{order.Customer.FirstName} {order.Customer.LastName}",
+
+                StoreId = order.StoreId,
+                StoreName = order.Store.Name,
+
+                Address = new AddressResponseDto
+                {
+                    Id = order.Address.Id,
+                    CustomerId = order.Address.CustomerId,
+                    Label = order.Address.Label,
+                    Street = order.Address.Street,
+                    City = order.Address.City,
+                    Latitude = order.Address.Latitude,
+                    Longitude = order.Address.Longitude,
+                    IsDefault = order.Address.IsDefault
+                },
+
+                Lines = order.OrderLines
+                    .Select(line => new OrderLineResponseDto
+                    {
+                        ProductId = line.ProductId,
+                        ProductName = line.ProductName,
+                        Quantity = line.Quantity,
+                        UnitPrice = line.UnitPrice,
+                        LineTotal = line.Quantity * line.UnitPrice
+                    })
+                    .ToList(),
+
+                StatusHistory = order.StatusHistory
+                    .OrderBy(h => h.Id)
+                    .Select(h => new OrderStatusHistoryDto
+                    {
+                        OldStatus = h.OldStatus,
+                        Status = h.Status,
+                        ChangedAtUtc = h.CreatedAtUtc,
+                        Note = h.Note
+                    })
+                    .ToList()
+            };
         }
-
         // Get Customer Orders
-        public async Task<CustomerOrderHistoryDto> GetCustomerOrdersAsync(
+
+        public async Task<PagedResultDto<CustomerOrderSummaryDto>> GetCustomerOrdersAsync(
             int customerId,
             int page,
             int pageSize)
         {
             if (customerId <= 0)
                 throw new ValidationException(
+                    "customerId",
                     "Customer ID must be greater than 0.");
+
             if (page < 1 || pageSize < 1 || pageSize > 100)
                 throw new ValidationException(
+                    "page",
                     "Invalid pagination values.");
+
             var customerExists = await _context.Customers
                 .AnyAsync(c => c.Id == customerId);
 
             if (!customerExists)
-                throw new NotFoundException(
-                    "Customer not found.");
+                throw new NotFoundException("Customer not found.");
 
             var query = _context.Orders
                 .Where(o => o.CustomerId == customerId);
@@ -235,22 +297,30 @@ namespace DeliveryPlatform.Service.Services
 
             var orders = await query
                 .OrderByDescending(o => o.CreatedAtUtc)
+                .ThenByDescending(o => o.Id)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Include(o => o.OrderLines)
+                .Select(o => new CustomerOrderSummaryDto
+                {
+                    Id = o.Id,
+                    OrderCode = o.OrderCode,
+                    CreatedAtUtc = o.CreatedAtUtc,
+                    Status = o.Status,
+                    StoreName = o.Store.Name,
+                    LineCount = o.OrderLines.Count,
+                    Total = o.Total
+                })
                 .ToListAsync();
 
-            return new CustomerOrderHistoryDto
+            return new PagedResultDto<CustomerOrderSummaryDto>
             {
-                Items = orders
-                    .Select(MapOrderToResponse)
-                    .ToList(),
-
+                Items = orders,
                 TotalCount = totalCount,
                 Page = page,
                 PageSize = pageSize
             };
         }
+
 
         // Update Order Status
         public async Task<OrderResponseDto> UpdateOrderStatusAsync(
@@ -258,10 +328,10 @@ namespace DeliveryPlatform.Service.Services
             UpdateOrderStatusDto request)
         {
             if (orderId <= 0)
-                throw new ValidationException(
+                throw new ValidationException("orderId",
                     "Order ID must be greater than 0.");
             if (!Enum.IsDefined(typeof(OrderStatus), request.Status))
-                throw new ValidationException(
+                throw new ValidationException("OrderStatus",
                     "Invalid order status.");
 
             await using var transaction =
@@ -278,41 +348,47 @@ namespace DeliveryPlatform.Service.Services
                     throw new NotFoundException(
                         "Order not found.");
 
-                if (!AllowedTransitions.TryGetValue(
-                    order.Status, out var allowedStatuses) ||
-                    !allowedStatuses.Contains(request.Status))
+                var allowedStatuses = AllowedTransitions.TryGetValue(
+                    order.Status, out var nextStatuses)
+                        ? nextStatuses
+                        : Array.Empty<OrderStatus>();
+
+                if (!allowedStatuses.Contains(request.Status))
                 {
+                    var allowedText = allowedStatuses.Length == 0
+                        ? "nothing, because this status is final"
+                        : string.Join(", ", allowedStatuses);
+
                     throw new BusinessRuleException(
-                        $"Cannot change order status from {order.Status} " +
-                        $"to {request.Status}.");
+                        $"Cannot change order status from {order.Status} to {request.Status}. Allowed: {allowedText}.");
                 }
 
+
                 // Return stock only when Declined
-                if (request.Status == OrderStatus.Declined ||
-                    request.Status == OrderStatus.Cancelled)
+                // Return stock only when Declined
+                if (request.Status == OrderStatus.Declined)
                 {
                     foreach (var line in order.OrderLines)
                     {
                         var product = await _context.Products
-                            .FirstOrDefaultAsync(
-                                p => p.Id == line.ProductId);
+                            .FirstOrDefaultAsync(p => p.Id == line.ProductId);
 
                         if (product != null)
                             product.StockQuantity += line.Quantity;
                     }
                 }
+                var oldStatus = order.Status;
 
                 order.Status = request.Status;
 
-                _context.OrderStatusHistories.Add(
+                _context.OrderStatusHistory.Add(
                     new OrderStatusHistory
                     {
                         OrderId = order.Id,
+                        OldStatus = oldStatus,
                         Status = request.Status,
-                        ChangedAtUtc = DateTime.UtcNow,
                         Note = request.Note
                     });
-
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();

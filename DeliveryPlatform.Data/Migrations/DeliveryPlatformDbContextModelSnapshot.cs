@@ -220,7 +220,7 @@ namespace DeliveryPlatform.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Categorie", (string)null);
+                    b.ToTable("Category", (string)null);
                 });
 
             modelBuilder.Entity("DeliveryPlatform.Data.Entities.Customer", b =>
@@ -238,21 +238,22 @@ namespace DeliveryPlatform.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Email")
+                        .IsRequired()
                         .HasMaxLength(254)
                         .HasColumnType("nvarchar(254)");
 
                     b.Property<string>("FirstName")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<string>("LastName")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("PhoneNumber")
                         .IsRequired()
@@ -265,8 +266,7 @@ namespace DeliveryPlatform.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
-                        .IsUnique()
-                        .HasFilter("[Email] IS NOT NULL");
+                        .IsUnique();
 
                     b.ToTable("Customer", (string)null);
                 });
@@ -279,7 +279,7 @@ namespace DeliveryPlatform.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int?>("AddressId")
+                    b.Property<int>("AddressId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAtUtc")
@@ -443,9 +443,6 @@ namespace DeliveryPlatform.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("ChangedAtUtc")
-                        .HasColumnType("datetime2");
-
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -458,6 +455,9 @@ namespace DeliveryPlatform.Data.Migrations
                     b.Property<string>("Note")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("OldStatus")
+                        .HasColumnType("int");
 
                     b.Property<int>("OrderId")
                         .HasColumnType("int");
@@ -472,9 +472,11 @@ namespace DeliveryPlatform.Data.Migrations
 
                     b.HasIndex("OrderId");
 
-                    b.ToTable("OrderStatusHistorie", null, t =>
+                    b.ToTable("OrderStatusHistory", null, t =>
                         {
-                            t.HasCheckConstraint("CK_OrderStatusHistories_Status", "[Status] IN (0, 1, 2, 3, 4, 5, 6)");
+                            t.HasCheckConstraint("CK_OrderStatusHistory_OldStatus", "[OldStatus] IS NULL OR [OldStatus] IN (0, 1, 2, 3, 4, 5, 6)");
+
+                            t.HasCheckConstraint("CK_OrderStatusHistory_Status", "[Status] IN (0, 1, 2, 3, 4, 5, 6)");
                         });
                 });
 
@@ -723,7 +725,8 @@ namespace DeliveryPlatform.Data.Migrations
                     b.HasOne("DeliveryPlatform.Data.Entities.Address", "Address")
                         .WithMany()
                         .HasForeignKey("AddressId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("DeliveryPlatform.Data.Entities.Customer", "Customer")
                         .WithMany()
@@ -747,7 +750,7 @@ namespace DeliveryPlatform.Data.Migrations
             modelBuilder.Entity("DeliveryPlatform.Data.Entities.OrderLine", b =>
                 {
                     b.HasOne("DeliveryPlatform.Data.Entities.Order", "Order")
-                        .WithMany()
+                        .WithMany("OrderLines")
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -832,6 +835,11 @@ namespace DeliveryPlatform.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("DeliveryPlatform.Data.Entities.Order", b =>
+                {
+                    b.Navigation("OrderLines");
                 });
 #pragma warning restore 612, 618
         }

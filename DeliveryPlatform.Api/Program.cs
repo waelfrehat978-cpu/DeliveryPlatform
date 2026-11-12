@@ -4,11 +4,13 @@ using DeliveryPlatform.Data.Seed;
 using DeliveryPlatform.Service.Services;
 using DeliveryPlatform.Service.Interfaces;
 using Microsoft.EntityFrameworkCore;
-using Scalar.AspNetCore;
+
 using DeliveryPlatform.Api.Middleware;
 using Microsoft.AspNetCore.Mvc;
 using Serilog;
 
+using DeliveryPlatform.Service.Options;
+using Microsoft.Extensions.Options;
 var builder = WebApplication.CreateBuilder(args);
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -47,9 +49,12 @@ builder.Services.AddControllers()
             });
         };
     });
-builder.Services.AddOpenApi();
+
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.Configure<OrderOptions>(
+    builder.Configuration.GetSection("Order"));
 
 // Register AppSaveChangesInterceptor
 builder.Services.AddScoped<AppSaveChangesInterceptor>();
@@ -82,7 +87,7 @@ builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 
 // Register DataSeeder
-builder.Services.AddScoped<DataSeeder>();
+builder.Services.AddScoped<IDataSeeder, DataSeeder>();
 
 var app = builder.Build();
 
@@ -90,11 +95,13 @@ var app = builder.Build();
 if (args.Contains("--reseed"))
 {
     using var scope = app.Services.CreateScope();
+    var seeder = scope.ServiceProvider.GetRequiredService<IDataSeeder>();
 
-    var seeder = scope.ServiceProvider.GetRequiredService<DataSeeder>();
+    var orderOptions = scope.ServiceProvider
+        .GetRequiredService<IOptions<OrderOptions>>()
+        .Value;
 
-    await seeder.ReseedAsync();
-
+    await seeder.ReseedAsync(orderOptions.DeliveryFee);
     return;
 }
 

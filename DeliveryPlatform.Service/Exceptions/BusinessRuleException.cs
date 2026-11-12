@@ -4,9 +4,9 @@ using System.Text;
 
 namespace DeliveryPlatform.Service.Exceptions
 {
-    public class BusinessRuleException: Exception
+    public class BusinessRuleException: AppException
         
     {
-      public  BusinessRuleException(string message) : base(message) { }
+      public  BusinessRuleException(string message) : base(422,message) { }
     }
 }

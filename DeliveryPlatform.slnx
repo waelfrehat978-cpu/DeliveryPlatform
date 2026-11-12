@@ -1,6 +1,10 @@
 <Solution>
   <Folder Name="/docs/">
     <File Path="api-guidelines.md" />
+    <File Path="day-01.md" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
   </Folder>
   <Project Path="DeliveryPlatform.Api/DeliveryPlatform.Api.csproj" />
   <Project Path="DeliveryPlatform.Data/DeliveryPlatform.Data.csproj" />

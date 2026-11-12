@@ -58,7 +58,7 @@ namespace DeliveryPlatform.Service.Services
         {
             if (id <= 0)
                 throw new DeliveryPlatform.Service.Exceptions.ValidationException(
-                    "Customer ID must be greater than 0.");
+                    "id","Customer ID must be greater than 0.");
             var customer= await _context.Customers
                 .AsNoTracking()
                 .Where(c => c.Id == id)
@@ -83,7 +83,7 @@ namespace DeliveryPlatform.Service.Services
         {
             if (id <= 0)
                 throw new DeliveryPlatform.Service.Exceptions.ValidationException(
-                    "Customer ID must be greater than 0.");
+                   "id" ,"Customer ID must be greater than 0.");
             var customer = await _context.Customers
                 .FirstOrDefaultAsync(c => c.Id == id);
 

@@ -66,20 +66,25 @@ namespace DeliveryPlatform.Service.Services
 
             var totalCount = await query.CountAsync();
 
+            
             // Sorting
             query = searchDto.SortBy?.ToLower() switch
             {
                 "price" when searchDto.SortDescending =>
-                    query.OrderByDescending(p => p.Price),
+                    query.OrderByDescending(p => p.Price)
+                         .ThenBy(p => p.Id),
 
                 "price" =>
-                    query.OrderBy(p => p.Price),
+                    query.OrderBy(p => p.Price)
+                         .ThenBy(p => p.Id),
 
                 "name" when searchDto.SortDescending =>
-                    query.OrderByDescending(p => p.Name),
+                    query.OrderByDescending(p => p.Name)
+                         .ThenBy(p => p.Id),
 
                 _ =>
                     query.OrderBy(p => p.Name)
+                         .ThenBy(p => p.Id)
             };
 
             var products = await query
@@ -108,7 +113,7 @@ namespace DeliveryPlatform.Service.Services
         public async Task<ProductDetailsDto> GetProductByIdAsync(int id)
         {
             if (id <= 0)
-                throw new ValidationException("Product Id Must be greater than 0.");
+                throw new ValidationException("id", "Product Id Must be greater than 0.");
 
             var product= await _context.Products
                 .AsNoTracking()

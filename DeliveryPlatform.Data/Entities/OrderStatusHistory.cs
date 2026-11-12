@@ -8,9 +8,9 @@ namespace DeliveryPlatform.Data.Entities
 
         public Order Order { get; set; } = null!;
 
-        public OrderStatus Status { get; set; }
+        public OrderStatus? OldStatus { get; set; }
 
-        public DateTime ChangedAtUtc { get; set; }
+        public OrderStatus Status { get; set; }
 
         public string? Note { get; set; }
     }

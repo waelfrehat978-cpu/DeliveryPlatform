@@ -70,7 +70,7 @@ namespace DeliveryPlatform.Data.Configurations
 
             entity.HasOne(o => o.Address)
                 .WithMany()
-                .HasForeignKey(o => o.AddressId)
+                .HasForeignKey(o => o.AddressId).IsRequired()
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

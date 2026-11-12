@@ -22,7 +22,10 @@ namespace DeliveryPlatform.Api.Controllers
             var customer = await _customerService
                 .CreateCustomerAsync(customerDto);
 
-            return StatusCode(201, customer);
+            return CreatedAtAction(
+      nameof(GetCustomerById),
+      new { id = customer.Id },
+      customer);
         }
 
         [HttpGet("{id:int}")]

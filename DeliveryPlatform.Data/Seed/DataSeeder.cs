@@ -8,7 +8,7 @@ using System.Diagnostics;
 
 namespace DeliveryPlatform.Data.Seed;
 
-public class DataSeeder
+public class DataSeeder: IDataSeeder
 {
     private readonly DeliveryPlatformDbContext _context;
 
@@ -18,7 +18,7 @@ public class DataSeeder
     private const int CustomerCount = 20_000;
     private const int ExtraAddressCount = 15_000;   // 20,000 + 15,000 = 35,000 addresses
     private const int OrderTarget = 300_000;
-    private const decimal DeliveryFee = 2.50m;      // flat, same as the README setting
+    private decimal _deliveryFee;   // flat, same as the README setting
 
     // Per-table totals: rows inserted and time spent inside the bulk insert.
     private readonly Dictionary<string, (int Rows, TimeSpan Time)> _timings = new();
@@ -28,8 +28,11 @@ public class DataSeeder
         _context = context;
     }
 
-    public async Task ReseedAsync(CancellationToken cancellationToken = default)
+    public async Task ReseedAsync(
+     decimal deliveryFee,
+     CancellationToken cancellationToken = default)
     {
+        _deliveryFee = deliveryFee;
         var totalTimer = Stopwatch.StartNew();
         _timings.Clear();
 
@@ -65,7 +68,7 @@ public class DataSeeder
         // Children before parents. ExecuteDelete runs a real DELETE (it bypasses the interceptor).
         await _context.CartLineOptions.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.OrderLineOptions.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
-        await _context.OrderStatusHistories.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
+        await _context.OrderStatusHistory.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.CartLines.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.OrderLines.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.Carts.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
@@ -74,7 +77,7 @@ public class DataSeeder
         await _context.ProductOptions.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.ProductOptionGroups.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.Products.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
-        await _context.Categories.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
+        await _context.Category.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.Stores.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.Customers.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
 
@@ -336,7 +339,7 @@ Cancelled
                     AddressId = address.Id,
                     Status = status,
                     PaymentMethod = faker.PickRandom<PaymentMethod>(),
-                    DeliveryFee = DeliveryFee,
+                    DeliveryFee = _deliveryFee,
                     CreatedAtUtc = orderDate
                 };
                 //انشاء الطلب وتعبه البيانات
@@ -498,12 +501,11 @@ Cancelled
         {
             var at = orderDate.AddMinutes(i * 20);//انتقال الحاله بعد 20 دقيقه من السابقه
             if (at > now) at = now;   // منع اي تسجيل في المستقبل
-
             histories.Add(new OrderStatusHistory
             {
                 Order = order,
+                OldStatus = i == 0 ? null : statuses[i - 1],
                 Status = statuses[i],
-                ChangedAtUtc = at,
                 CreatedAtUtc = at
             });
         }

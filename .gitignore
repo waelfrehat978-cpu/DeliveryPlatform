@@ -9,5 +9,8 @@
 
 # Logs
 **/Logs/
-# Development settings
-**/appsettings.Development.json
+
+# Application settings
+**/appsettings.json
+**/appsettings.*.json
+!**/appsettings.Example.json

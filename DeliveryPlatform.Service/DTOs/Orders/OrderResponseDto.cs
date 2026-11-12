@@ -12,7 +12,7 @@ namespace DeliveryPlatform.Service.DTOs.Orders
 
         public int StoreId { get; set; }
 
-        public int? AddressId { get; set; }
+        public int AddressId { get; set; }
 
         public OrderStatus Status { get; set; }
 

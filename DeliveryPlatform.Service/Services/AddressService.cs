@@ -75,7 +75,7 @@ namespace DeliveryPlatform.Service.Services
         {
             if (customerId <= 0)
                 throw new ValidationException(
-                    "Customer ID must be greater than 0.");
+                    "customerId", "Customer ID must be greater than 0.");
             var customerExists = await _context.Customers
                 .AnyAsync(c => c.Id == customerId);
 
