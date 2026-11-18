@@ -1,10 +1,15 @@
 <Solution>
   <Folder Name="/docs/">
-    <File Path="api-guidelines.md" />
-    <File Path="day-01.md" />
+    <File Path="day-02-attack-log.md" />
+    <File Path="docs/api-guidelines.md" />
+    <File Path="docs/day-00.md" />
+    <File Path="docs/day-01.md" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path="README.md" />
+    <File Path="authorization-matrix.md" />
+    <File Path="day-02.md" />
+    <File Path="requests.http" />
   </Folder>
   <Project Path="DeliveryPlatform.Api/DeliveryPlatform.Api.csproj" />
   <Project Path="DeliveryPlatform.Data/DeliveryPlatform.Data.csproj" />

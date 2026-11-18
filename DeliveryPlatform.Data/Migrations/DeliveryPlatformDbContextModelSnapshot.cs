@@ -22,6 +22,9 @@ namespace DeliveryPlatform.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.HasSequence("OrderCodeSequence")
+                .HasMax(99999999L);
+
             modelBuilder.Entity("DeliveryPlatform.Data.Entities.Address", b =>
                 {
                     b.Property<int>("Id")
@@ -480,6 +483,64 @@ namespace DeliveryPlatform.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("DeliveryPlatform.Data.Entities.OtpCode", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(6)
+                        .HasColumnType("nvarchar(6)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSignupCompleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsUsed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("PhoneNumber")
+                        .IsRequired()
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("VerifiedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("WrongAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PhoneNumber", "ExpiresAtUtc");
+
+                    b.ToTable("OtpCodes", (string)null);
+                });
+
             modelBuilder.Entity("DeliveryPlatform.Data.Entities.Product", b =>
                 {
                     b.Property<int>("Id")
@@ -614,6 +675,55 @@ namespace DeliveryPlatform.Data.Migrations
                     b.ToTable("ProductOptionGroup", (string)null);
                 });
 
+            modelBuilder.Entity("DeliveryPlatform.Data.Entities.RefreshToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("ReplacedByTokenId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReplacedByTokenId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RefreshTokens");
+                });
+
             modelBuilder.Entity("DeliveryPlatform.Data.Entities.Store", b =>
                 {
                     b.Property<int>("Id")
@@ -650,6 +760,73 @@ namespace DeliveryPlatform.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Store", (string)null);
+                });
+
+            modelBuilder.Entity("DeliveryPlatform.Data.Entities.User", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PasswordHash")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("StoreId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId")
+                        .IsUnique()
+                        .HasFilter("[CustomerId] IS NOT NULL");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasFilter("[Email] IS NOT NULL");
+
+                    b.HasIndex("PhoneNumber")
+                        .IsUnique()
+                        .HasFilter("[PhoneNumber] IS NOT NULL");
+
+                    b.HasIndex("StoreId")
+                        .IsUnique()
+                        .HasFilter("[StoreId] IS NOT NULL");
+
+                    b.ToTable("User", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_User_Customer_Fields", "([Role] = 0\r\n    AND [PhoneNumber] IS NOT NULL\r\n    AND [Email] IS NULL\r\n    AND [PasswordHash] IS NULL\r\n    AND [CustomerId] IS NOT NULL\r\n    AND [StoreId] IS NULL)\r\nOR\r\n([Role] = 1\r\n    AND [PhoneNumber] IS NULL\r\n    AND [Email] IS NOT NULL\r\n    AND [PasswordHash] IS NOT NULL\r\n    AND [CustomerId] IS NULL\r\n    AND [StoreId] IS NOT NULL)\r\nOR\r\n([Role] = 2\r\n    AND [PhoneNumber] IS NULL\r\n    AND [Email] IS NOT NULL\r\n    AND [PasswordHash] IS NOT NULL\r\n    AND [CustomerId] IS NULL\r\n    AND [StoreId] IS NULL)");
+
+                            t.HasCheckConstraint("CK_User_Role_Valid", "[Role] IN (0, 1, 2)");
+                        });
                 });
 
             modelBuilder.Entity("DeliveryPlatform.Data.Entities.Address", b =>
@@ -788,7 +965,7 @@ namespace DeliveryPlatform.Data.Migrations
             modelBuilder.Entity("DeliveryPlatform.Data.Entities.OrderStatusHistory", b =>
                 {
                     b.HasOne("DeliveryPlatform.Data.Entities.Order", "Order")
-                        .WithMany()
+                        .WithMany("StatusHistory")
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -837,9 +1014,46 @@ namespace DeliveryPlatform.Data.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("DeliveryPlatform.Data.Entities.RefreshToken", b =>
+                {
+                    b.HasOne("DeliveryPlatform.Data.Entities.RefreshToken", "ReplacedByToken")
+                        .WithMany()
+                        .HasForeignKey("ReplacedByTokenId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("DeliveryPlatform.Data.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ReplacedByToken");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DeliveryPlatform.Data.Entities.User", b =>
+                {
+                    b.HasOne("DeliveryPlatform.Data.Entities.Customer", "Customer")
+                        .WithOne()
+                        .HasForeignKey("DeliveryPlatform.Data.Entities.User", "CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("DeliveryPlatform.Data.Entities.Store", "Store")
+                        .WithOne()
+                        .HasForeignKey("DeliveryPlatform.Data.Entities.User", "StoreId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("Store");
+                });
+
             modelBuilder.Entity("DeliveryPlatform.Data.Entities.Order", b =>
                 {
                     b.Navigation("OrderLines");
+
+                    b.Navigation("StatusHistory");
                 });
 #pragma warning restore 612, 618
         }

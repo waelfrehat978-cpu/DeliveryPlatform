@@ -9,5 +9,10 @@ namespace DeliveryPlatform.Service.Interfaces
             ProductSearchDto searchDto);
 
         Task<ProductDetailsDto> GetProductByIdAsync(int id);
+        Task<ProductDetailsDto> CreateProductAsync(
+    CreateProductDto request);
+        Task<ProductDetailsDto> UpdateProductAsync(
+    int id,
+    UpdateProductDto request);
     }
 }

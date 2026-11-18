@@ -1,19 +1,30 @@
-﻿using DeliveryPlatform.Data.Context;
+﻿
+using DeliveryPlatform.Data.Context;
+using DeliveryPlatform.Data.Entities;
+using DeliveryPlatform.Data.Enums;
+using DeliveryPlatform.Data.Interfaces;
 using DeliveryPlatform.Service.DTOs;
 using DeliveryPlatform.Service.DTOs.Products;
+using DeliveryPlatform.Service.Exceptions;
 using DeliveryPlatform.Service.Interfaces;
 using Microsoft.EntityFrameworkCore;
-using DeliveryPlatform.Service.Exceptions;
 
 namespace DeliveryPlatform.Service.Services
 {
     public class ProductService : IProductService
     {
         private readonly DeliveryPlatformDbContext _context;
+        private readonly IResourceAuthorizationService _resourceAuthorization;
+        private readonly ICurrentUser _currentUser;
 
-        public ProductService(DeliveryPlatformDbContext context)
+        public ProductService(
+            DeliveryPlatformDbContext context,
+            IResourceAuthorizationService resourceAuthorization,
+            ICurrentUser currentUser)
         {
             _context = context;
+            _resourceAuthorization = resourceAuthorization;
+            _currentUser = currentUser;
         }
 
         public async Task<PagedResultDto<ProductDto>> SearchProductsAsync(
@@ -21,42 +32,36 @@ namespace DeliveryPlatform.Service.Services
         {
             var query = _context.Products.AsNoTracking();
 
-            // Search by product name
             if (!string.IsNullOrWhiteSpace(searchDto.Search))
             {
                 query = query.Where(p =>
                     p.Name.Contains(searchDto.Search));
             }
 
-            // Filter by store
             if (searchDto.StoreId.HasValue)
             {
                 query = query.Where(p =>
                     p.StoreId == searchDto.StoreId.Value);
             }
 
-            // Filter by category
             if (searchDto.CategoryId.HasValue)
             {
                 query = query.Where(p =>
                     p.CategoryId == searchDto.CategoryId.Value);
             }
 
-            // Filter by minimum price
             if (searchDto.MinPrice.HasValue)
             {
                 query = query.Where(p =>
                     p.Price >= searchDto.MinPrice.Value);
             }
 
-            // Filter by maximum price
             if (searchDto.MaxPrice.HasValue)
             {
                 query = query.Where(p =>
                     p.Price <= searchDto.MaxPrice.Value);
             }
 
-            // Filter by stock availability
             if (searchDto.InStock.HasValue)
             {
                 query = searchDto.InStock.Value
@@ -66,8 +71,6 @@ namespace DeliveryPlatform.Service.Services
 
             var totalCount = await query.CountAsync();
 
-            
-            // Sorting
             query = searchDto.SortBy?.ToLower() switch
             {
                 "price" when searchDto.SortDescending =>
@@ -113,9 +116,11 @@ namespace DeliveryPlatform.Service.Services
         public async Task<ProductDetailsDto> GetProductByIdAsync(int id)
         {
             if (id <= 0)
-                throw new ValidationException("id", "Product Id Must be greater than 0.");
+                throw new ValidationException(
+                    "id",
+                    "Product Id Must be greater than 0.");
 
-            var product= await _context.Products
+            var product = await _context.Products
                 .AsNoTracking()
                 .Where(p => p.Id == id)
                 .Select(p => new ProductDetailsDto
@@ -129,10 +134,112 @@ namespace DeliveryPlatform.Service.Services
                     CategoryId = p.CategoryId
                 })
                 .FirstOrDefaultAsync();
+
             if (product is null)
                 throw new NotFoundException("Product not found.");
 
             return product;
+        }
+
+        public async Task<ProductDetailsDto> CreateProductAsync(
+            CreateProductDto request)
+        {
+            int storeId;
+
+            if (_currentUser.Role == UserRole.Partner)
+            {
+                if (!_currentUser.StoreId.HasValue)
+                {
+                    throw new ForbiddenException(
+                        "You do not have access to this store.");
+                }
+
+                storeId = _currentUser.StoreId.Value;
+
+                await _resourceAuthorization.EnsureStoreAccessAsync(
+                    storeId);
+            }
+            else if (_currentUser.Role == UserRole.Admin)
+            {
+                storeId = request.StoreId;
+
+                await _resourceAuthorization.EnsureStoreAccessAsync(
+                    storeId);
+            }
+            else
+            {
+                throw new ForbiddenException(
+                    "You are not allowed to create products.");
+            }
+
+            var categoryExists = await _context.Categories
+                .AnyAsync(c => c.Id == request.CategoryId);
+
+            if (!categoryExists)
+                throw new NotFoundException("Category not found.");
+
+            var product = new Product
+            {
+                Name = request.Name,
+                Description = request.Description,
+                Price = request.Price,
+                StockQuantity = request.StockQuantity,
+                StoreId = storeId,
+                CategoryId = request.CategoryId
+            };
+
+            _context.Products.Add(product);
+
+            await _context.SaveChangesAsync();
+
+            return new ProductDetailsDto
+            {
+                Id = product.Id,
+                Name = product.Name,
+                Description = product.Description,
+                Price = product.Price,
+                StockQuantity = product.StockQuantity,
+                StoreId = product.StoreId,
+                CategoryId = product.CategoryId
+            };
+        }
+
+        public async Task<ProductDetailsDto> UpdateProductAsync(
+            int id,
+            UpdateProductDto request)
+        {
+            await _resourceAuthorization.EnsureProductAccessAsync(id);
+
+            var product = await _context.Products
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (product is null)
+                throw new NotFoundException("Product not found.");
+
+            var categoryExists = await _context.Categories
+                .AnyAsync(c => c.Id == request.CategoryId);
+
+            if (!categoryExists)
+                throw new NotFoundException("Category not found.");
+
+            product.Name = request.Name;
+            product.Description = request.Description;
+            product.Price = request.Price;
+            product.StockQuantity = request.StockQuantity;
+            product.CategoryId = request.CategoryId;
+
+            await _context.SaveChangesAsync();
+
+            return new ProductDetailsDto
+            {
+                Id = product.Id,
+                Name = product.Name,
+                Description = product.Description,
+                Price = product.Price,
+                StockQuantity = product.StockQuantity,
+                StoreId = product.StoreId,
+                CategoryId = product.CategoryId
+            };
         }
     }
 }

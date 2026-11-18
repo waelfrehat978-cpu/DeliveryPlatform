@@ -2,6 +2,7 @@
 using DeliveryPlatform.Service.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 namespace DeliveryPlatform.Api.Controllers
 {
     [ApiController]
@@ -14,7 +15,7 @@ namespace DeliveryPlatform.Api.Controllers
         {
             _addressService = addressService;
         }
-
+        [Authorize(Roles = "Customer,Admin")]
         [HttpPost]
         public async Task<ActionResult<AddressResponseDto>> AddAddress(
             CreateAddressRequestDto request)
@@ -26,6 +27,7 @@ namespace DeliveryPlatform.Api.Controllers
                 new { customerId = result.CustomerId },
                 result);
         }
+        [Authorize(Roles = "Customer,Admin")]
         [HttpGet]
         public async Task<ActionResult<List<AddressResponseDto>>> GetCustomerAddresses(
             [FromQuery, Range(1, int.MaxValue)] int customerId)

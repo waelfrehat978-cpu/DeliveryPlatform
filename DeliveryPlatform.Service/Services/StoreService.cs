@@ -1,4 +1,5 @@
 ﻿using DeliveryPlatform.Data.Context;
+using DeliveryPlatform.Data.Entities;
 using DeliveryPlatform.Service.DTOs;
 using DeliveryPlatform.Service.DTOs.Stores;
 using DeliveryPlatform.Service.Exceptions;
@@ -76,6 +77,29 @@ namespace DeliveryPlatform.Service.Services
                 throw new NotFoundException("Store not found.");
 
             return store;
+        }
+        public async Task<StoreDetailsDto> CreateStoreAsync(
+    CreateStoreDto request)
+        {
+            var store = new Store
+            {
+                Name = request.Name,
+                Latitude = request.Latitude,
+                Longitude = request.Longitude
+            };
+
+            _context.Stores.Add(store);
+
+            await _context.SaveChangesAsync();
+
+            return new StoreDetailsDto
+            {
+                Id = store.Id,
+                Name = store.Name,
+                Latitude = store.Latitude,
+                Longitude = store.Longitude,
+                ProductCount = 0
+            };
         }
     }
 }

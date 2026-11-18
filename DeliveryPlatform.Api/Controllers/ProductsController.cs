@@ -1,7 +1,7 @@
 ﻿using DeliveryPlatform.Service.DTOs.Products;
 using DeliveryPlatform.Service.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-
+using Microsoft.AspNetCore.Authorization;
 namespace DeliveryPlatform.Api.Controllers
 {
     [ApiController]
@@ -35,6 +35,30 @@ namespace DeliveryPlatform.Api.Controllers
 
             var product = await _productService.GetProductByIdAsync(id);
 
+
+            return Ok(product);
+        }
+        [Authorize(Roles = "Partner,Admin")]
+        [HttpPost]
+        public async Task<IActionResult> CreateProduct(
+       [FromBody] CreateProductDto request)
+        {
+            var product = await _productService.CreateProductAsync(request);
+
+            return CreatedAtAction(
+                nameof(GetProductById),
+                new { id = product.Id },
+                product);
+        }
+        [Authorize(Roles = "Partner,Admin")]
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> UpdateProduct(
+     int id,
+     [FromBody] UpdateProductDto request)
+        {
+            var product = await _productService.UpdateProductAsync(
+                id,
+                request);
 
             return Ok(product);
         }

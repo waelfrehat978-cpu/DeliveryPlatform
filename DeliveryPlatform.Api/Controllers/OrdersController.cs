@@ -2,6 +2,7 @@
 using DeliveryPlatform.Service.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 namespace DeliveryPlatform.Api.Controllers
 {
     [ApiController]
@@ -15,7 +16,7 @@ namespace DeliveryPlatform.Api.Controllers
             _orderService = orderService;
         }
 
-     
+        [Authorize(Roles = "Customer")]
         [HttpPost]
         public async Task<IActionResult> CreateOrder(
             [FromBody] CreateOrderDto request)
@@ -28,7 +29,7 @@ namespace DeliveryPlatform.Api.Controllers
                 result);
         }
 
-     
+        [Authorize(Roles = "Customer,Partner,Admin")]
         [HttpGet("{orderId:int}")]
         public async Task<IActionResult> GetOrderById(int orderId)
         {
@@ -38,6 +39,7 @@ namespace DeliveryPlatform.Api.Controllers
         }
 
 
+        [Authorize(Roles = "Customer,Admin")]
         [HttpGet]
         public async Task<IActionResult> GetCustomerOrders(
      [FromQuery, Range(1, int.MaxValue)] int customerId,
@@ -52,6 +54,7 @@ namespace DeliveryPlatform.Api.Controllers
             return Ok(result);
         }
 
+        [Authorize(Roles = "Partner,Admin")]
         [HttpPut("{orderId:int}/status")]
         public async Task<IActionResult> UpdateOrderStatus(
             int orderId,

@@ -10,11 +10,15 @@ namespace DeliveryPlatform.Service.Services
 {
     public class ReportService : IReportService
     {
+        private readonly IResourceAuthorizationService _resourceAuthorization;
         private readonly DeliveryPlatformDbContext _context;
 
-        public ReportService(DeliveryPlatformDbContext context)
+        public ReportService(
+         DeliveryPlatformDbContext context,
+         IResourceAuthorizationService resourceAuthorization)
         {
             _context = context;
+            _resourceAuthorization = resourceAuthorization;
         }
 
         public async Task<StoreDashboardDto> GetStoreDashboardAsync(
@@ -24,15 +28,8 @@ namespace DeliveryPlatform.Service.Services
                 throw new ValidationException(
                     "storeId",
                     "Store ID must be greater than zero.");
-
-            var storeExists = await _context.Stores
-                .AnyAsync(s => s.Id == storeId);
-
-            if (!storeExists)
-                throw new NotFoundException(
-                    $"Store {storeId} was not found.");
-
-            // Calculate today's date using Amman timezone
+            await _resourceAuthorization.EnsureStoreAccessAsync(storeId);
+            // Calculate today's start at midnight in Amman timezone, then convert it to UTC.
             var amman = TimeZoneInfo.FindSystemTimeZoneById(
                 "Asia/Amman");
 

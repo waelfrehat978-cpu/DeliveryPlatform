@@ -1,7 +1,8 @@
-﻿using DeliveryPlatform.Service.Interfaces;
+﻿using DeliveryPlatform.Service.DTOs.Stores;
+using DeliveryPlatform.Service.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
-
+using Microsoft.AspNetCore.Authorization;
 namespace DeliveryPlatform.Api.Controllers
 {
 
@@ -36,6 +37,18 @@ namespace DeliveryPlatform.Api.Controllers
 
 
             return Ok(store);
+        }
+        [Authorize(Roles = "Admin")]
+        [HttpPost]
+        public async Task<IActionResult> CreateStore(
+    [FromBody] CreateStoreDto request)
+        {
+            var store = await _storeService.CreateStoreAsync(request);
+
+            return CreatedAtAction(
+                nameof(GetStoreById),
+                new { id = store.Id },
+                store);
         }
     }
 }

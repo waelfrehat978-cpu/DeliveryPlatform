@@ -1,6 +1,7 @@
 ﻿
 using DeliveryPlatform.Service.DTOs.Reports;
 using DeliveryPlatform.Service.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeliveryPlatform.Api.Controllers
@@ -16,6 +17,7 @@ namespace DeliveryPlatform.Api.Controllers
             _reportService = reportService;
         }
 
+        [Authorize(Roles = "Partner,Admin")]
         [HttpGet]
         public async Task<ActionResult<StoreDashboardDto>>
             GetStoreDashboard(int storeId)
