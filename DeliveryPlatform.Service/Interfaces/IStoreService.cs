@@ -9,8 +9,8 @@ namespace DeliveryPlatform.Service.Interfaces
             int page,
             int pageSize
             );
-        Task<StoreDetailsDto?>
+        Task<StoreDetailsDto>
             GetStoreByIdAsync(int id);
-
+        Task<StoreDetailsDto> CreateStoreAsync(CreateStoreDto request);
     }
 }

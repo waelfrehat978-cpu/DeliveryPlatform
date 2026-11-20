@@ -1,4 +1,5 @@
-﻿using DeliveryPlatform.Data.Context;
+﻿
+using DeliveryPlatform.Data.Context;
 using DeliveryPlatform.Data.Enums;
 using DeliveryPlatform.Service.DTOs.Reports;
 using DeliveryPlatform.Service.Exceptions;
@@ -9,81 +10,67 @@ namespace DeliveryPlatform.Service.Services
 {
     public class ReportService : IReportService
     {
+        private readonly IResourceAuthorizationService _resourceAuthorization;
         private readonly DeliveryPlatformDbContext _context;
 
-        public ReportService(DeliveryPlatformDbContext context)
+        public ReportService(
+         DeliveryPlatformDbContext context,
+         IResourceAuthorizationService resourceAuthorization)
         {
             _context = context;
+            _resourceAuthorization = resourceAuthorization;
         }
 
-        // Today's Orders and Revenue
-        public async Task<StoreDailyReportDto> GetDailyReportAsync(
+        public async Task<StoreDashboardDto> GetStoreDashboardAsync(
             int storeId)
         {
             if (storeId <= 0)
-                throw new ValidationException("Store ID must be greater than zero.");
+                throw new ValidationException(
+                    "storeId",
+                    "Store ID must be greater than zero.");
+            await _resourceAuthorization.EnsureStoreAccessAsync(storeId);
+            // Calculate today's start at midnight in Amman timezone, then convert it to UTC.
+            var amman = TimeZoneInfo.FindSystemTimeZoneById(
+                "Asia/Amman");
 
-            var storeExists = await _context.Stores
-                .AnyAsync(s => s.Id == storeId);
+            var nowInAmman = TimeZoneInfo.ConvertTimeFromUtc(
+                DateTime.UtcNow, amman);
 
-            if (!storeExists)
-                throw new NotFoundException("Store not found.");
-            var startOfDay = DateTime.UtcNow.Date;
-            var endOfDay = startOfDay.AddDays(1);
-         
-            var orders = _context.Orders
+            var todayStartUtc = TimeZoneInfo.ConvertTimeToUtc(
+                nowInAmman.Date, amman);
+
+            var tomorrowStartUtc = todayStartUtc.AddDays(1);
+
+            var last30DaysStartUtc = DateTime.UtcNow.AddDays(-30);
+
+            // Base query for store orders
+            var storeOrdersQuery = _context.Orders
                 .Where(o =>
                     o.StoreId == storeId &&
-                    o.CreatedAtUtc >= startOfDay &&
-                    o.CreatedAtUtc < endOfDay &&
                     o.Status != OrderStatus.Declined &&
                     o.Status != OrderStatus.Cancelled);
 
-            /*
-               o.StoreId == storeId 
-            طاب تابع للمتجر
-             o.CreatedAtUtc >= startOfDay
-            طلب انشئ بعد باديه اليوم
-              o.CreatedAtUtc < endOfDay &&
-            طال تنشئ قبل بدايه اليوم التالي 
-             o.Status != OrderStatus.Declined 
-            استبعاد الطلبات المرفوضه
-                    o.Status != OrderStatus.Cancelled);
-            استبعاد الطلبات الملغاة 
-             */
+            // Today's orders
+            var todayOrdersQuery = storeOrdersQuery
+                .Where(o =>
+                    o.CreatedAtUtc >= todayStartUtc &&
+                    o.CreatedAtUtc < tomorrowStartUtc);
 
-            var totalOrders = await orders.CountAsync();
-            // حساب عدد الطلبات 
+            var todayOrderCount = await todayOrdersQuery.CountAsync();
 
-            var totalRevenue = await orders
+            var todayRevenue = await todayOrdersQuery
                 .SumAsync(o => (decimal?)o.Total) ?? 0;
-            // حساب الايرادات 
 
-            return new StoreDailyReportDto
-            {
-                TotalOrders = totalOrders,
-                TotalRevenue = totalRevenue
-            };
-        }
+            // Average order value in the last 30 days
+            var averageOrderValue = await storeOrdersQuery
+                .Where(o => o.CreatedAtUtc >= last30DaysStartUtc)
+                .AverageAsync(o => (decimal?)o.Total) ?? 0;
 
-        // Top 5 Selling Products in Last 30 Days
-        public async Task<List<TopSellingProductDto>>
-            GetTopSellingProductsAsync(int storeId)
-        {
-            if (storeId <= 0)
-                throw new ValidationException("Store ID must be greater than zero.");
-
-            var storeExists = await _context.Stores
-                .AnyAsync(s => s.Id == storeId);
-
-            if (!storeExists)
-                throw new NotFoundException("Store not found.");
-            var startDate = DateTime.UtcNow.AddDays(-30);
-
-            var products = await _context.OrderLines
+            // Top 5 selling products in the last 30 days
+            var topProducts = await _context.OrderLines
                 .Where(line =>
                     line.Order.StoreId == storeId &&
-                    line.Order.CreatedAtUtc >= startDate &&
+                    line.Order.CreatedAtUtc >= last30DaysStartUtc &&
                     line.Order.Status != OrderStatus.Declined &&
                     line.Order.Status != OrderStatus.Cancelled)
                 .GroupBy(line => new
@@ -102,59 +89,19 @@ namespace DeliveryPlatform.Service.Services
                 .Take(5)
                 .ToListAsync();
 
-            return products;
-        }
-
-        // Average Order Value in Last 30 Days
-        public async Task<AverageOrderValueDto>
-            GetAverageOrderValueAsync(int storeId)
-        {
-            if (storeId <= 0)
-                throw new ValidationException("Store ID must be greater than zero.");
-
-            var storeExists = await _context.Stores
-                .AnyAsync(s => s.Id == storeId);
-
-            if (!storeExists)
-                throw new NotFoundException("Store not found.");
-            var startDate = DateTime.UtcNow.AddDays(-30);
-
-            var orders = _context.Orders
-                .Where(o =>
-                    o.StoreId == storeId &&
-                    o.CreatedAtUtc >= startDate &&
-                    o.Status != OrderStatus.Declined &&
-                    o.Status != OrderStatus.Cancelled);
-
-            var totalOrders = await orders.CountAsync();
-
-            var averageValue = totalOrders == 0
-                ? 0
-                : await orders.AverageAsync(o => o.Total);
-
-            return new AverageOrderValueDto
+            // Active order statuses only
+            var activeStatuses = new[]
             {
-                AverageValue = averageValue
+                OrderStatus.Pending,
+                OrderStatus.Accepted,
+                OrderStatus.Preparing,
+                OrderStatus.OutForDelivery
             };
-        }
 
-        // Order Counts by Status
-        public async Task<List<OrderStatusCountDto>>
-            GetOrderStatusCountsAsync(int storeId)
-        {
-            if (storeId <= 0)
-                throw new ValidationException("Store ID must be greater than zero.");
-
-            var storeExists = await _context.Stores
-                .AnyAsync(s => s.Id == storeId);
-
-            if (!storeExists)
-                throw new NotFoundException("Store not found.");
-            var counts = await _context.Orders
+            var activeStatusCounts = await _context.Orders
                 .Where(o =>
                     o.StoreId == storeId &&
-                    o.Status != OrderStatus.Declined &&
-                    o.Status != OrderStatus.Cancelled)
+                    activeStatuses.Contains(o.Status))
                 .GroupBy(o => o.Status)
                 .Select(group => new OrderStatusCountDto
                 {
@@ -163,7 +110,14 @@ namespace DeliveryPlatform.Service.Services
                 })
                 .ToListAsync();
 
-            return counts;
+            return new StoreDashboardDto
+            {
+                TodayOrderCount = todayOrderCount,
+                TodayRevenue = todayRevenue,
+                TopProducts = topProducts,
+                AverageOrderValue = averageOrderValue,
+                ActiveStatusCounts = activeStatusCounts
+            };
         }
     }
 }

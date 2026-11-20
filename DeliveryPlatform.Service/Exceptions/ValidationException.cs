@@ -4,8 +4,17 @@ using System.Text;
 
 namespace DeliveryPlatform.Service.Exceptions
 {
-    public class ValidationException: Exception
+    public class ValidationException: AppException
     {
-       public ValidationException(string message) : base(message) { }
+        public Dictionary<string, string[]>Errors {  get; }
+       public ValidationException(string field, string message) : base(400,message) {
+
+            Errors = new Dictionary<string, string[]> {
+                { field, new[]{message} }
+            
+            };
+
+
+        }
     }
 }

@@ -10,7 +10,7 @@ namespace DeliveryPlatform.Service.DTOs.Orders
         [Range(1, int.MaxValue)]
         public int StoreId { get; set; }
         [Range(1, int.MaxValue)]
-        public int? AddressId { get; set; }
+        public int AddressId { get; set; }
         [EnumDataType(typeof(PaymentMethod))]
         public PaymentMethod PaymentMethod { get; set; }
         [Required,MinLength (1)]

@@ -1,4 +1,5 @@
-﻿using DeliveryPlatform.Service.DTOs.Orders;
+﻿using DeliveryPlatform.Service.DTOs;
+using DeliveryPlatform.Service.DTOs.Orders;
 
 namespace DeliveryPlatform.Service.Interfaces
 {
@@ -7,14 +8,13 @@ namespace DeliveryPlatform.Service.Interfaces
         Task<OrderResponseDto> CreateOrderAsync(
             CreateOrderDto request);
 
-        Task<OrderResponseDto> GetOrderByIdAsync(
+        Task<OrderDetailsDto> GetOrderByIdAsync(
             int orderId);
 
-        Task<CustomerOrderHistoryDto> GetCustomerOrdersAsync(
-            int customerId,
-            int page,
-            int pageSize);
-
+        Task<PagedResultDto<CustomerOrderSummaryDto>> GetCustomerOrdersAsync(
+     int customerId,
+     int page,
+     int pageSize);
         Task<OrderResponseDto> UpdateOrderStatusAsync(
             int orderId,
             UpdateOrderStatusDto request);

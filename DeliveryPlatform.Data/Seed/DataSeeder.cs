@@ -1,46 +1,62 @@
-﻿using Bogus;
+﻿
+using Bogus;
 using DeliveryPlatform.Data.Context;
 using DeliveryPlatform.Data.Entities;
 using DeliveryPlatform.Data.Enums;
 using EFCore.BulkExtensions;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Diagnostics;
 
 namespace DeliveryPlatform.Data.Seed;
 
-public class DataSeeder
+public class DataSeeder : IDataSeeder
 {
     private readonly DeliveryPlatformDbContext _context;
+    private readonly IPasswordHasher<User> _passwordHasher;
+    private readonly SeedOptions _seedOptions;
 
     private const int BatchSize = 10_000;
     private const int StoreCount = 50;
     private const int ProductCount = 40_000;
     private const int CustomerCount = 20_000;
-    private const int ExtraAddressCount = 15_000;   // 20,000 + 15,000 = 35,000 addresses
+    private const int ExtraAddressCount = 15_000;
     private const int OrderTarget = 300_000;
-    private const decimal DeliveryFee = 2.50m;      // flat, same as the README setting
+
+    private decimal _deliveryFee;
 
     // Per-table totals: rows inserted and time spent inside the bulk insert.
     private readonly Dictionary<string, (int Rows, TimeSpan Time)> _timings = new();
 
-    public DataSeeder(DeliveryPlatformDbContext context)
+    public DataSeeder(
+        DeliveryPlatformDbContext context,
+        IPasswordHasher<User> passwordHasher,
+        IOptions<SeedOptions> seedOptions)
     {
         _context = context;
+        _passwordHasher = passwordHasher;
+        _seedOptions = seedOptions.Value;
     }
 
-    public async Task ReseedAsync(CancellationToken cancellationToken = default)
+    public async Task ReseedAsync(
+        decimal deliveryFee,
+        CancellationToken cancellationToken = default)
     {
+        _deliveryFee = deliveryFee;
         var totalTimer = Stopwatch.StartNew();
         _timings.Clear();
 
-        Console.WriteLine("Starting database reseed...");// بدايه العمل 
+        Console.WriteLine("Starting database reseed...");
 
-        await ClearExistingDataAsync(cancellationToken);//يستدعي دالة مسؤولة عن تنظيف البيانات القديمة قبل إنشاء البيانات الجديدة.
-
+        await ClearExistingDataAsync(cancellationToken);
 
         var stores = await SeedStoresAsync(cancellationToken);
         var categories = await SeedCategoriesAsync(cancellationToken);
         var customers = await SeedCustomersAsync(cancellationToken);
+
+        await SeedUsersAsync(customers, stores, cancellationToken);
+
         var addresses = await SeedAddressesAsync(customers, cancellationToken);
         var products = await SeedProductsAsync(stores, categories, cancellationToken);
 
@@ -51,8 +67,10 @@ public class DataSeeder
         Console.WriteLine();
         Console.WriteLine("================ Seed timings ================");
         Console.WriteLine($"{"Table",-22}{"Rows",12}{"Insert time",16}");
+
         foreach (var (table, (rows, time)) in _timings)
             Console.WriteLine($"{table,-22}{rows,12:N0}{time,16:mm\\:ss\\.fff}");
+
         Console.WriteLine("----------------------------------------------");
         Console.WriteLine($"Total duration (incl. generation): {totalTimer.Elapsed:mm\\:ss\\.fff}");
         Console.WriteLine("==============================================");
@@ -61,10 +79,13 @@ public class DataSeeder
     private async Task ClearExistingDataAsync(CancellationToken cancellationToken)
     {
         Console.WriteLine("Clearing old data...");
-        _context.Database.SetCommandTimeout(TimeSpan.FromMinutes(10));//تحديد اقى وقت مسموح لتنفيذ امر sql 10 دقائق
+
+        _context.Database.SetCommandTimeout(TimeSpan.FromMinutes(10));
+
         // Children before parents. ExecuteDelete runs a real DELETE (it bypasses the interceptor).
         await _context.CartLineOptions.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.OrderLineOptions.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
+        await _context.RefreshTokens.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.OrderStatusHistories.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.CartLines.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.OrderLines.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
@@ -75,6 +96,10 @@ public class DataSeeder
         await _context.ProductOptionGroups.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.Products.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.Categories.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
+
+        // Delete users before their related stores and customers.
+        await _context.Users.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
+
         await _context.Stores.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.Customers.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
 
@@ -84,79 +109,126 @@ public class DataSeeder
     private async Task<List<Store>> SeedStoresAsync(CancellationToken cancellationToken)
     {
         var stores = new Faker<Store>()
-            .RuleFor(x => x.Name, f => f.Company.CompanyName())//اسم عشوائي لشركه
+            .RuleFor(x => x.Name, f => f.Company.CompanyName())
             .RuleFor(x => x.Latitude, f => Math.Round(f.Random.Decimal(31.5m, 32.1m), 6))
-            //ااحداثيات عرض عشوائيه بين 31.5و32.1
-
             .RuleFor(x => x.Longitude, f => Math.Round(f.Random.Decimal(35.7m, 36.1m), 6))
-            //ااحداثيات طول عشوائيه بين 36.1و35.7
             .Generate(StoreCount);
 
         await BulkInsertAsync("Stores", stores, setOutputIdentity: true, cancellationToken);
+
         return stores;
-        //ادخال المتاجر الى قاعده البيانات وارجاع القام بعد الادخال
-
-
     }
 
     private async Task<List<Category>> SeedCategoriesAsync(CancellationToken cancellationToken)
     {
-        var faker = new Faker();//توليد البيانات الوهميه
+        var faker = new Faker();
 
         var categories = PriceRanges.Keys.Select(name => new Category
         {
             Name = name,
             Description = faker.Lorem.Sentence()
         }).ToList();
-        /*
-         هوPriceRanges.Keys: يأخذ أسماء التصنيفات الموجودة في قاموس PriceRanges.
-Select: يحوّل كل اسم إلى كائن Category.
-Name: يأخذ اسم التصنيف.
-Description: ينشئ وصفاً عشوائياً.
-ToList(): يحول النتائج إلى قائمة.
-         
-         */
-        await BulkInsertAsync("Categories", categories, setOutputIdentity: true, cancellationToken);
-        return categories;
 
-        //ادخال البيانات على قاعد البيانات وارجاع القائمه
+        await BulkInsertAsync("Categories", categories, setOutputIdentity: true, cancellationToken);
+
+        return categories;
     }
 
     private async Task<List<Customer>> SeedCustomersAsync(CancellationToken cancellationToken)
-        //انشاء العملاء وارجاع على شكل قائمه
     {
         var faker = new Faker();
-       // نستخدمه لتوليد أسماء وبيانات عشوائية.
         var customers = new List<Customer>(CustomerCount);
-        //انشاء قائمه تستوعب 20000 عميل 
+
         for (int i = 0; i < CustomerCount; i++)
         {
             customers.Add(new Customer
             {
                 FirstName = faker.Name.FirstName(),
                 LastName = faker.Name.LastName(),
-                PhoneNumber = $"07{faker.Random.Replace("########")}",
+                PhoneNumber = $"079{i + 1:D7}",
                 Email = $"customer{i + 1}@example.com"
             });
-            /*
-             * يولد اسماً أول عشوائياً.
-يولد اسم عائلة عشوائياً.
-ينشئ رقماً يبدأ بـ 07 ثم يضيف 8 أرقام عشوائية.
-ينشئ إيميلاً فريداً لكل عميل.
-             */
         }
 
         await BulkInsertAsync("Customers", customers, setOutputIdentity: true, cancellationToken);
+
         return customers;
-       //ادخال البيانات على قاعد البيانات وارجاع القائمه
+    }
+
+    private async Task SeedUsersAsync(
+        List<Customer> customers,
+        List<Store> stores,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_seedOptions.AdminEmail) ||
+            string.IsNullOrWhiteSpace(_seedOptions.AdminPassword) ||
+            string.IsNullOrWhiteSpace(_seedOptions.PartnerPassword))
+        {
+            throw new InvalidOperationException(
+                "Seed credentials are missing from configuration.");
+        }
+
+        var users = new List<User>(customers.Count + stores.Count + 1);
+
+        // One Customer user for every customer.
+        foreach (var customer in customers)
+        {
+            users.Add(new User
+            {
+                PhoneNumber = customer.PhoneNumber,
+                Role = UserRole.Customer,
+                CustomerId = customer.Id
+            });
+        }
+
+        // One Partner user for every store.
+        foreach (var store in stores)
+        {
+            var partner = new User
+            {
+                Email = $"partner{store.Id}@example.com",
+                Role = UserRole.Partner,
+                StoreId = store.Id
+            };
+
+            partner.PasswordHash = _passwordHasher.HashPassword(
+                partner,
+                _seedOptions.PartnerPassword);
+
+            users.Add(partner);
+        }
+
+        // Exactly one Admin user.
+        var admin = new User
+        {
+            Email = _seedOptions.AdminEmail,
+            Role = UserRole.Admin
+        };
+
+        admin.PasswordHash = _passwordHasher.HashPassword(
+            admin,
+            _seedOptions.AdminPassword);
+
+        users.Add(admin);
+
+        await BulkInsertAsync(
+            "Users",
+            users,
+            setOutputIdentity: false,
+            cancellationToken);
     }
 
     private async Task<List<Address>> SeedAddressesAsync(
-        List<Customer> customers, CancellationToken cancellationToken)//cancellationToken: لإمكانية إلغاء العملية.
-
+        List<Customer> customers,
+        CancellationToken cancellationToken)
     {
         var faker = new Faker();
-        string[] cities = { "Amman", "Irbid", "Zarqa", "Aqaba", "Madaba", "Salt", "Jerash", "Karak" };
+
+        string[] cities =
+        {
+            "Amman", "Irbid", "Zarqa", "Aqaba",
+            "Madaba", "Salt", "Jerash", "Karak"
+        };
 
         var addresses = new List<Address>(CustomerCount + ExtraAddressCount);
 
@@ -170,19 +242,17 @@ ToList(): يحول النتائج إلى قائمة.
             Longitude = Math.Round(faker.Random.Decimal(34.9m, 39.3m), 6),
             IsDefault = isDefault
         };
-        /*
-         دالة محلية داخل SeedAddressesAsync، وظيفتها بناء عنوان جديد.
-         */
+
         // Every customer gets exactly ONE default address ("Home").
         foreach (var customer in customers)
             addresses.Add(Build(customer, "Home", isDefault: true));
-        //20000
 
         // Some customers also get a second, non-default address.
-        foreach (var customer in customers.Take(ExtraAddressCount))//15000
+        foreach (var customer in customers.Take(ExtraAddressCount))
             addresses.Add(Build(customer, faker.PickRandom("Work", "Other"), isDefault: false));
-        //20000+15000=350000
+
         await BulkInsertAsync("Addresses", addresses, setOutputIdentity: true, cancellationToken);
+
         return addresses;
     }
 
@@ -221,7 +291,9 @@ ToList(): يحول النتائج إلى قائمة.
     };
 
     private async Task<List<Product>> SeedProductsAsync(
-        List<Store> stores, List<Category> categories, CancellationToken cancellationToken)
+        List<Store> stores,
+        List<Category> categories,
+        CancellationToken cancellationToken)
     {
         var faker = new Faker();
         var products = new List<Product>(ProductCount);
@@ -236,11 +308,11 @@ ToList(): يحول النتائج إلى قائمة.
 
             products.Add(new Product
             {
-                // the running number keeps (StoreId, Name) unique
+                // The running number keeps (StoreId, Name) unique.
                 Name = $"{faker.Commerce.ProductName()} {i + 1}",
                 Description = faker.Commerce.ProductDescription(),
                 Price = Math.Round(price, 2),
-                // ~4% out of stock
+                // ~4% out of stock.
                 StockQuantity = faker.Random.Double() < 0.04 ? 0 : faker.Random.Int(1, 500),
                 StoreId = stores[i % stores.Count].Id,
                 CategoryId = category.Id
@@ -248,6 +320,7 @@ ToList(): يحول النتائج إلى قائمة.
         }
 
         await BulkInsertAsync("Products", products, setOutputIdentity: true, cancellationToken);
+
         return products;
     }
 
@@ -282,52 +355,30 @@ ToList(): يحول النتائج إلى قائمة.
             cancellationToken.ThrowIfCancellationRequested();
 
             int batch = Math.Min(BatchSize, OrderTarget - start);
-            //يحدد حجم الدفعة الحالية، ولا يسمح لها بتجاوز العدد المتبقي من الطلبات.
-        //ثم:
 
             var orders = new List<Order>(batch);
             var lines = new List<OrderLine>(batch * 4);
             var histories = new List<OrderStatusHistory>(batch * 5);
-            
 
             for (int i = 0; i < batch; i++)
             {
                 // Skewed: low indexes are picked far more often => a few heavy customers, most rare.
                 var customer = customers[(int)(customers.Count * Math.Pow(rng.Double(), 3))];
-                //يختار زبوناً عشوائياً،
+
                 var store = stores[rng.Int(0, stores.Count - 1)];
                 var storeProducts = productsByStore[store.Id];
                 var address = faker.PickRandom(addressesByCustomer[customer.Id]);
-                /*
 
-                 يختار متجراً عشوائياً من قائمة المتاجر.
-                يجلب المنتجات التابعة للمتجر الذي اخترناه فقط.
-                يختار عنواناً عشوائياً من عناوين الزبون نفسه.
-                 */
                 var status = GenerateOrderStatus(rng);
-                /*
-                 
-                 يستدعي دالة GenerateOrderStatus لتحديد حالة الطلب، مثل:
-Pending
-Accepted
-Preparing
-OutForDelivery
-Delivered
-Declined
-Cancelled
-                 */
+
                 var inProgress = status is OrderStatus.Pending or OrderStatus.Accepted
                     or OrderStatus.Preparing or OrderStatus.OutForDelivery;
-                //فحص حاله الطلب اذا كانت من الحالات ال 4 تكونtrue غير ذلك false
+
                 // In-progress orders are fresh (last 36h); finished ones are spread over 12 months.
                 var orderDate = inProgress
                     ? now.AddHours(-rng.Double() * 36)
                     : oldest.AddSeconds(rng.Double() * finishedSpanSeconds);
-                /*
-                 * تحديد تاريخ الطلب 
-                 نستخدم العامل الثلاثي ? :، ومعناه:
-إذا كان الطلب قيد التنفيذ: نختار تاريخاً خلال آخر 36 ساعة.
-                 */
+
                 var order = new Order
                 {
                     OrderCode = GenerateOrderCode(orderDate, rng, usedCodes, ref codeCounter),
@@ -336,68 +387,43 @@ Cancelled
                     AddressId = address.Id,
                     Status = status,
                     PaymentMethod = faker.PickRandom<PaymentMethod>(),
-                    DeliveryFee = DeliveryFee,
+                    DeliveryFee = _deliveryFee,
                     CreatedAtUtc = orderDate
                 };
-                //انشاء الطلب وتعبه البيانات
 
                 // 1..8 distinct products, most orders small.
                 int lineTarget = 1 + (int)(Math.Pow(rng.Double(), 2) * 8);
-                // تحديد عدد المنتجات داخل الطلب الواحد 
+
                 var chosen = new HashSet<int>();
-                /*
-                 منع تكرار المنتجات
-                HashSet<int>();
-                لا يسمح بتكرار العناصر
-                 
-                 */
+
                 while (chosen.Count < lineTarget)
                     chosen.Add(rng.Int(0, storeProducts.Count - 1));
 
                 decimal subtotal = 0;
+
                 foreach (var index in chosen)
                 {
                     var product = storeProducts[index];
                     int quantity = rng.Int(1, 4);
 
-                    /*
-                     - "subtotal": متغير لحساب مجموع أسعار المنتجات.
-- "foreach": يمر على المنتجات المختارة.
-- "product": المنتج الحالي.
-- "quantity": كمية عشوائية من 1 إلى 4.
-
-                     
-                     */
-
                     lines.Add(new OrderLine
                     {
                         Order = order,
                         ProductId = product.Id,
-                        ProductName = product.Name,   // snapshot
-                        UnitPrice = product.Price,    // snapshot
+                        ProductName = product.Name,
+                        UnitPrice = product.Price,
                         Quantity = quantity,
                         CreatedAtUtc = orderDate
                     });
-                    //حفظ الطلب 
-                    subtotal += product.Price * quantity;// سعر الطلب * الكميه
+
+                    subtotal += product.Price * quantity;
                 }
 
                 order.Subtotal = subtotal;
-                order.Total = subtotal + order.DeliveryFee;//مجموع المنتجات + التوصيل
+                order.Total = subtotal + order.DeliveryFee;
 
                 orders.Add(order);
                 histories.AddRange(GenerateStatusHistory(order, status, orderDate, now, rng));
-                /*
-                 
-                  "orders.Add(order)": إضافة الطلب إلى قائمة الطلبات.
-- "GenerateStatusHistory": إنشاء سجل انتقالات حالات الطلب.
-- "AddRange": إضافة جميع سجلات الحالات الناتجة إلى قائمة "histories".
-
-
-                 
-                 */
-
-
             }
 
             // Orders first: we need their generated Ids for the children.
@@ -407,7 +433,8 @@ Cancelled
             {
                 line.OrderId = line.Order.Id;
                 line.Order = null!;
-            }//ربط order بي orderline
+            }
+
             await BulkInsertAsync("OrderLines", lines, setOutputIdentity: false, cancellationToken);
 
             foreach (var history in histories)
@@ -415,11 +442,11 @@ Cancelled
                 history.OrderId = history.Order.Id;
                 history.Order = null!;
             }
-            // ربط order بي orderstatushistory
+
             await BulkInsertAsync("OrderStatusHistory", histories, setOutputIdentity: false, cancellationToken);
 
             doneOrders += orders.Count;
-            // زياده عدد الطلبات
+
             Console.WriteLine($"Orders: {doneOrders:N0}/{OrderTarget:N0}");
         }
     }
@@ -439,71 +466,72 @@ Cancelled
             <= 99 => OrderStatus.Preparing,
             _ => OrderStatus.OutForDelivery
         };
-        //تحديد حاله الطلب بنسبه محدده
     }
 
     // yyMM + 5 random digits + 3-digit counter (wraps after 999).
     // The HashSet only avoids useless retries; the unique index is the real guarantee.
     private static string GenerateOrderCode(
-        DateTime date, Randomizer rng, HashSet<string> used, ref int counter)
+        DateTime date,
+        Randomizer rng,
+        HashSet<string> used,
+        ref int counter)
     {
-
-        /*
-         Randomizer rng: توليد ارقام عشوائيه
-          HashSet<string> used: حفظ الاكواد التي تم استخدامها مع منع تكرار نفس الكود
-         */
         string code;
+
         do
         {
-
-            //{date:yyMM} :السنه والشهر فقط
-            //rng.Int(0, 99_999):D5 انشاء خمس ارقام عشريه عشوائيه
-            //{counter % 1000:D3} 3 ارقام لعدد
-
             code = $"{date:yyMM}{rng.Int(0, 99_999):D5}{counter % 1000:D3}";
         }
-        while (!used.Add(code));//مارح توقف غير لما يكون الكود جديد
+        while (!used.Add(code));
 
         counter++;
+
         return code;
     }
 
-    private static List<OrderStatusHistory> GenerateStatusHistory(//سجل تاريخي للحالات الطلب من البدايه حتى النهايه
-        Order order, OrderStatus finalStatus, DateTime orderDate, DateTime now, Randomizer rng)
+    private static List<OrderStatusHistory> GenerateStatusHistory(
+        Order order,
+        OrderStatus finalStatus,
+        DateTime orderDate,
+        DateTime now,
+        Randomizer rng)
     {
-        // انواع الحلات للطلب 
         OrderStatus[] road =
         {
-            OrderStatus.Pending, OrderStatus.Accepted,
-            OrderStatus.Preparing, OrderStatus.OutForDelivery
+            OrderStatus.Pending,
+            OrderStatus.Accepted,
+            OrderStatus.Preparing,
+            OrderStatus.OutForDelivery
         };
-        // اضافه حالات اخرى 
-        OrderStatus[] statuses = finalStatus switch
+
+        var statuses = finalStatus switch
         {
-            OrderStatus.Delivered => road.Append(OrderStatus.Delivered).ToArray(),// اضافه حاله Delivered بعد الحالات الاوله 
+            OrderStatus.Delivered => road.Append(OrderStatus.Delivered).ToArray(),
 
             // Declined: stopped before leaving the store (from Pending, Accepted or Preparing).
-            OrderStatus.Declined => road.Take(rng.Int(1, 3)).Append(OrderStatus.Declined).ToArray(),//حذف الحالات ال3 الاوله بعد تاكيد الطلب وخروج السائق فيصبح الطلب outfordriver
+            OrderStatus.Declined => road.Take(rng.Int(1, 3)).Append(OrderStatus.Declined).ToArray(),
 
             // Cancelled: only from OutForDelivery.
-            OrderStatus.Cancelled => road.Append(OrderStatus.Cancelled).ToArray(),//اضافه بعد الحالات الاساسيه حاله الالغاء
+            OrderStatus.Cancelled => road.Append(OrderStatus.Cancelled).ToArray(),
 
             // In progress: the road up to the current status.
-            _ => road.Take(Array.IndexOf(road, finalStatus) + 1).ToArray() //اذا مفي حالات غير الاساسيه ناخذ من بدايه المستر للنهايه
+            _ => road.Take(Array.IndexOf(road, finalStatus) + 1).ToArray()
         };
 
-        var histories = new List<OrderStatusHistory>(statuses.Length); 
+        var histories = new List<OrderStatusHistory>(statuses.Length);
 
         for (int i = 0; i < statuses.Length; i++)
         {
-            var at = orderDate.AddMinutes(i * 20);//انتقال الحاله بعد 20 دقيقه من السابقه
-            if (at > now) at = now;   // منع اي تسجيل في المستقبل
+            var at = orderDate.AddMinutes(i * 20);
+
+            if (at > now)
+                at = now;
 
             histories.Add(new OrderStatusHistory
             {
                 Order = order,
+                OldStatus = i == 0 ? null : statuses[i - 1],
                 Status = statuses[i],
-                ChangedAtUtc = at,
                 CreatedAtUtc = at
             });
         }
@@ -524,7 +552,7 @@ Cancelled
         // Bulk operations skip SaveChangesInterceptor, so fill the audit values here.
         // This seeder is the only place allowed to do that.
         if (typeof(BaseEntity).IsAssignableFrom(typeof(TEntity)))
-        {//typeof(BaseEntity).IsAssignableFrom فحص اذا  الmodel يرث من BaseEntity
+        {
             var now = DateTime.UtcNow;
 
             foreach (var entity in entities.Cast<BaseEntity>())
@@ -537,28 +565,27 @@ Cancelled
             }
         }
 
-        var timer = Stopwatch.StartNew();//حساب وقت عمليه الادخال 
+        var timer = Stopwatch.StartNew();
 
-        await _context.BulkInsertAsync(//ادخال البيانات دفعه واحده 
+        await _context.BulkInsertAsync(
             entities,
             new BulkConfig
             {
-                BatchSize = BatchSize,//حجم الدفعه 10000
-                SetOutputIdentity = setOutputIdentity//يحدد هل نسترجع ال id 
+                BatchSize = BatchSize,
+                SetOutputIdentity = setOutputIdentity
             },
             cancellationToken: cancellationToken);
 
-        timer.Stop();//يوقف حساب الوقت بعد انتهاء العمليه
+        timer.Stop();
 
         _timings[table] = _timings.TryGetValue(table, out var old)
             ? (old.Rows + entities.Count, old.Time + timer.Elapsed)
             : (entities.Count, timer.Elapsed);
-        /*
-         تسجيل احصائيات كل جدول باستخدام timings
-         */
-        if (table is "Stores" or "Categories" or "Customers" or "Addresses" or "Products")
-            Console.WriteLine($"{table}: {entities.Count:N0} rows | {timer.Elapsed:mm\\:ss\\.fff}");
 
-        //عرض عدد الصفوف ووقت الادخال
+        if (table is "Stores" or "Categories" or "Customers"
+            or "Users" or "Addresses" or "Products")
+        {
+            Console.WriteLine($"{table}: {entities.Count:N0} rows | {timer.Elapsed:mm\\:ss\\.fff}");
+        }
     }
 }

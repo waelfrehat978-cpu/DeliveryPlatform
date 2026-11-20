@@ -4,9 +4,9 @@ using System.Text;
 
 namespace DeliveryPlatform.Service.Exceptions
 {
-    public class NotFoundException: Exception
+    public class NotFoundException: AppException
     {
-        public NotFoundException(string message): base(message){ }
+        public NotFoundException(string message): base(404,message){ }
 
 
     }

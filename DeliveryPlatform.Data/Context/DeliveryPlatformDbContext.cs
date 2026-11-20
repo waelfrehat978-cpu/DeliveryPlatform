@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using DeliveryPlatform.Data.Entities;
 using Microsoft.EntityFrameworkCore;
 namespace DeliveryPlatform.Data.Context;
@@ -43,10 +43,16 @@ public class DeliveryPlatformDbContext : DbContext
 
     public DbSet<OrderStatusHistory> OrderStatusHistories
         => Set<OrderStatusHistory>();
-
+    public DbSet<OtpCode> OtpCodes => Set<OtpCode>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.HasSequence<long>("OrderCodeSequence")
+        .StartsAt(1)
+        .IncrementsBy(1)
+        .HasMax(99_999_999);
 
         // Apply all entity configurations in this assembly.
         modelBuilder.ApplyConfigurationsFromAssembly(
@@ -66,6 +72,27 @@ public class DeliveryPlatformDbContext : DbContext
                 method.Invoke(null, new object[] { modelBuilder });
             }
         }
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(rt => rt.Id);
+
+            entity.Property(rt => rt.TokenHash)
+                .IsRequired()
+                .HasMaxLength(256);
+
+            entity.HasIndex(rt => rt.TokenHash)
+                .IsUnique();
+
+            entity.HasOne(rt => rt.User)
+                .WithMany()
+                .HasForeignKey(rt => rt.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(rt => rt.ReplacedByToken)
+                .WithMany()
+                .HasForeignKey(rt => rt.ReplacedByTokenId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
     }
 
     private static void SetSoftDeleteFilter<TEntity>(

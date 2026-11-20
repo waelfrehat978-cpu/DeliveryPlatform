@@ -9,7 +9,7 @@ namespace DeliveryPlatform.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<Category> entity)
         {
-            entity.ToTable("Categorie");
+            entity.ToTable("Category");
 
             entity.HasKey(c => c.Id);
 

@@ -10,28 +10,29 @@ namespace DeliveryPlatform.Data.Configurations
         public void Configure(
             EntityTypeBuilder<OrderStatusHistory> entity)
         {
-            entity.ToTable("OrderStatusHistorie");
+            entity.ToTable("OrderStatusHistory");
 
             entity.HasKey(h => h.Id);
 
             entity.Property(h => h.Note)
                 .HasMaxLength(500);
 
-            entity.Property(h => h.ChangedAtUtc)
-                .IsRequired();
-
+          
             entity.Property(h => h.Status)
                 .IsRequired();
 
             entity.ToTable(t =>
             {
                 t.HasCheckConstraint(
-                    "CK_OrderStatusHistories_Status",
+                    "CK_OrderStatusHistory_Status",
                     "[Status] IN (0, 1, 2, 3, 4, 5, 6)");
+                t.HasCheckConstraint(
+    "CK_OrderStatusHistory_OldStatus",
+    "[OldStatus] IS NULL OR [OldStatus] IN (0, 1, 2, 3, 4, 5, 6)");
             });
 
             entity.HasOne(h => h.Order)
-                .WithMany()
+          .WithMany(o => o.StatusHistory)
                 .HasForeignKey(h => h.OrderId)
                 .OnDelete(DeleteBehavior.Restrict);
         }

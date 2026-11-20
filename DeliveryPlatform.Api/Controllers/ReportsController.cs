@@ -1,11 +1,13 @@
-﻿using DeliveryPlatform.Service.DTOs.Reports;
+﻿
+using DeliveryPlatform.Service.DTOs.Reports;
 using DeliveryPlatform.Service.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeliveryPlatform.Api.Controllers
 {
     [ApiController]
-    [Route("api/stores/{storeId:int}/reports")]
+    [Route("api/v1/stores/{storeId:int}/dashboard")]
     public class ReportsController : ControllerBase
     {
         private readonly IReportService _reportService;
@@ -15,45 +17,13 @@ namespace DeliveryPlatform.Api.Controllers
             _reportService = reportService;
         }
 
-     
-        [HttpGet("daily")]
-        public async Task<ActionResult<StoreDailyReportDto>> GetDailyReport(
-            int storeId)
-        {
-            var result = await _reportService.GetDailyReportAsync(storeId);
-
-            return Ok(result);
-        }
-
-       
-        [HttpGet("top-products")]
-        public async Task<ActionResult<List<TopSellingProductDto>>>
-            GetTopSellingProducts(int storeId)
+        [Authorize(Roles = "Partner,Admin")]
+        [HttpGet]
+        public async Task<ActionResult<StoreDashboardDto>>
+            GetStoreDashboard(int storeId)
         {
             var result =
-                await _reportService.GetTopSellingProductsAsync(storeId);
-
-            return Ok(result);
-        }
-
-       
-        [HttpGet("average-order-value")]
-        public async Task<ActionResult<AverageOrderValueDto>>
-            GetAverageOrderValue(int storeId)
-        {
-            var result =
-                await _reportService.GetAverageOrderValueAsync(storeId);
-
-            return Ok(result);
-        }
-
-        // GET: api/stores/1/reports/order-status-counts
-        [HttpGet("order-status-counts")]
-        public async Task<ActionResult<List<OrderStatusCountDto>>>
-            GetOrderStatusCounts(int storeId)
-        {
-            var result =
-                await _reportService.GetOrderStatusCountsAsync(storeId);
+                await _reportService.GetStoreDashboardAsync(storeId);
 
             return Ok(result);
         }

@@ -1,4 +1,5 @@
-﻿using DeliveryPlatform.Data.Context;
+﻿
+using DeliveryPlatform.Data.Context;
 using DeliveryPlatform.Data.Entities;
 using DeliveryPlatform.Service.DTOs.Customers;
 using DeliveryPlatform.Service.Interfaces;
@@ -10,17 +11,20 @@ namespace DeliveryPlatform.Service.Services
     public class CustomerService : ICustomerService
     {
         private readonly DeliveryPlatformDbContext _context;
+        private readonly IResourceAuthorizationService _resourceAuthorization;
 
-        public CustomerService(DeliveryPlatformDbContext context)
+        public CustomerService(
+            DeliveryPlatformDbContext context,
+            IResourceAuthorizationService resourceAuthorization)
         {
             _context = context;
+            _resourceAuthorization = resourceAuthorization;
         }
 
-        // post
+        // Create Customer
         public async Task<CustomerDto> CreateCustomerAsync(
             CreateCustomerDto customerDto)
         {
-            // Check  email
             if (!string.IsNullOrWhiteSpace(customerDto.Email))
             {
                 bool emailExists = await _context.Customers
@@ -57,9 +61,15 @@ namespace DeliveryPlatform.Service.Services
         public async Task<CustomerDto> GetCustomerByIdAsync(int id)
         {
             if (id <= 0)
-                throw new DeliveryPlatform.Service.Exceptions.ValidationException(
+            {
+                throw new ValidationException(
+                    "id",
                     "Customer ID must be greater than 0.");
-            var customer= await _context.Customers
+            }
+
+            await _resourceAuthorization.EnsureCustomerAccessAsync(id);
+
+            var customer = await _context.Customers
                 .AsNoTracking()
                 .Where(c => c.Id == id)
                 .Select(c => new CustomerDto
@@ -71,8 +81,10 @@ namespace DeliveryPlatform.Service.Services
                     Email = c.Email
                 })
                 .FirstOrDefaultAsync();
+
             if (customer is null)
                 throw new NotFoundException("Customer not found.");
+
             return customer;
         }
 
@@ -82,15 +94,20 @@ namespace DeliveryPlatform.Service.Services
             UpdateCustomerDto customerDto)
         {
             if (id <= 0)
-                throw new DeliveryPlatform.Service.Exceptions.ValidationException(
+            {
+                throw new ValidationException(
+                    "id",
                     "Customer ID must be greater than 0.");
+            }
+
+            await _resourceAuthorization.EnsureCustomerAccessAsync(id);
+
             var customer = await _context.Customers
                 .FirstOrDefaultAsync(c => c.Id == id);
 
             if (customer is null)
-                 throw new NotFoundException("Customer not found.");
+                throw new NotFoundException("Customer not found.");
 
-            // Check  email 
             if (!string.IsNullOrWhiteSpace(customerDto.Email))
             {
                 bool emailExists = await _context.Customers

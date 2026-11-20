@@ -1,7 +1,8 @@
-﻿using DeliveryPlatform.Service.Interfaces;
-using DeliveryPlatform.Service.Services;
+﻿using DeliveryPlatform.Service.DTOs.Stores;
+using DeliveryPlatform.Service.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-
+using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 namespace DeliveryPlatform.Api.Controllers
 {
 
@@ -19,15 +20,10 @@ namespace DeliveryPlatform.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> GetStores(
             [FromQuery] string? name,
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10)
+            [FromQuery,Range(1,int.MaxValue)] int page = 1,
+            [FromQuery,Range(1,100)] int pageSize = 10)
         {
-            if (page < 1)
-                return BadRequest("Page must be greater than 0.");
-
-            if (pageSize < 1 || pageSize > 100)
-                return BadRequest("PageSize must be between 1 and 100.");
-
+          
             var stores = await _storeService.GetStoresAsync(
                 name, page, pageSize);
 
@@ -39,10 +35,20 @@ namespace DeliveryPlatform.Api.Controllers
         {
             var store = await _storeService.GetStoreByIdAsync(id);
 
-            if (store is null)
-                return NotFound();
 
             return Ok(store);
+        }
+        [Authorize(Roles = "Admin")]
+        [HttpPost]
+        public async Task<IActionResult> CreateStore(
+    [FromBody] CreateStoreDto request)
+        {
+            var store = await _storeService.CreateStoreAsync(request);
+
+            return CreatedAtAction(
+                nameof(GetStoreById),
+                new { id = store.Id },
+                store);
         }
     }
 }

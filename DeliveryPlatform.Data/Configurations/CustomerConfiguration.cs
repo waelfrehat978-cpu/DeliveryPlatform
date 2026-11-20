@@ -15,22 +15,22 @@ namespace DeliveryPlatform.Data.Configurations
 
             entity.Property(c => c.FirstName)
                 .IsRequired()
-                .HasMaxLength(50);
+                .HasMaxLength(100);
 
             entity.Property(c => c.LastName)
                 .IsRequired()
-                .HasMaxLength(50);
+                .HasMaxLength(100);
 
             entity.Property(c => c.PhoneNumber)
                 .IsRequired()
                 .HasMaxLength(20);
 
             entity.Property(c => c.Email)
+                .IsRequired()
                 .HasMaxLength(254);
 
             entity.HasIndex(c => c.Email)
-                .IsUnique()
-                .HasFilter("[Email] IS NOT NULL");
+                .IsUnique();
         }
     }
 }
