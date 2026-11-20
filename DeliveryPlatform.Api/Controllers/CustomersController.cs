@@ -17,20 +17,6 @@ namespace DeliveryPlatform.Api.Controllers
             _customerService = customerService;
         }
 
-        [Authorize(Roles = "Admin")]
-        [HttpPost]
-        public async Task<IActionResult> CreateCustomer(
-            CreateCustomerDto customerDto)
-        {
-            var customer = await _customerService
-                .CreateCustomerAsync(customerDto);
-
-            return CreatedAtAction(
-                nameof(GetCustomerById),
-                new { id = customer.Id },
-                customer);
-        }
-
         [Authorize(Roles = "Customer,Admin")]
         [HttpGet("{id:int}")]
         public async Task<IActionResult> GetCustomerById(int id)

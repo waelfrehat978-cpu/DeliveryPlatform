@@ -159,9 +159,17 @@ namespace DeliveryPlatform.Service.Services
                 await _resourceAuthorization.EnsureStoreAccessAsync(
                     storeId);
             }
+
             else if (_currentUser.Role == UserRole.Admin)
             {
-                storeId = request.StoreId;
+                if (!request.StoreId.HasValue)
+                {
+                    throw new ValidationException(
+                        "StoreId",
+                        "StoreId is required for Admin.");
+                }
+
+                storeId = request.StoreId.Value;
 
                 await _resourceAuthorization.EnsureStoreAccessAsync(
                     storeId);
@@ -173,10 +181,21 @@ namespace DeliveryPlatform.Service.Services
             }
 
             var categoryExists = await _context.Categories
-                .AnyAsync(c => c.Id == request.CategoryId);
+      .AnyAsync(c => c.Id == request.CategoryId);
 
             if (!categoryExists)
                 throw new NotFoundException("Category not found.");
+
+            var nameExists = await _context.Products
+                .AnyAsync(p =>
+                    p.StoreId == storeId &&
+                    p.Name == request.Name);
+
+            if (nameExists)
+            {
+                throw new ConflictException(
+                    "A product with this name already exists in this store.");
+            }
 
             var product = new Product
             {
@@ -221,6 +240,19 @@ namespace DeliveryPlatform.Service.Services
 
             if (!categoryExists)
                 throw new NotFoundException("Category not found.");
+
+            var nameExists = await _context.Products
+             .AnyAsync(p =>
+            p.StoreId == product.StoreId &&
+            p.Name == request.Name &&
+            p.Id != id);
+
+            if (nameExists)
+            {
+                throw new ConflictException(
+                    "A product with this name already exists in this store.");
+            }
+
 
             product.Name = request.Name;
             product.Description = request.Description;

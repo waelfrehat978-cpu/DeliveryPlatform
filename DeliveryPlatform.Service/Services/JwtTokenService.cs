@@ -13,11 +13,15 @@ namespace DeliveryPlatform.Service.Services
 {
     public class JwtTokenService : IJwtTokenService
     {
+        private readonly IClockService _clock;
         private readonly JwtOptions _jwtOptions;
 
-        public JwtTokenService(IOptions<JwtOptions> jwtOptions)
+        public JwtTokenService(
+         IOptions<JwtOptions> jwtOptions,
+         IClockService clock)
         {
             _jwtOptions = jwtOptions.Value;
+            _clock = clock;
         }
 
         public string GenerateAccessToken(User user)
@@ -50,8 +54,8 @@ namespace DeliveryPlatform.Service.Services
                 Issuer = _jwtOptions.Issuer,
                 Audience = _jwtOptions.Audience,
                 Subject = new ClaimsIdentity(claims),
-                Expires = DateTime.UtcNow.AddMinutes(
-                    _jwtOptions.AccessTokenMinutes),
+                Expires = _clock.UtcNow.AddMinutes(
+    _jwtOptions.AccessTokenMinutes),
                 SigningCredentials = credentials
             };
 

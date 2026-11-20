@@ -6,11 +6,13 @@ public interface IOtpService
 {
     Task RequestCodeAsync(string phoneNumber);
 
-    Task<User?> VerifyCodeAsync(string phoneNumber, string code);
+    Task<(User? User, string? SignupToken)> VerifyCodeAsync(
+     string phoneNumber,
+     string code);
 
     Task<User> CompleteSignupAsync(
-        string phoneNumber,
-        string firstName,
-        string lastName,
-        string email);
+      string signupToken,
+      string firstName,
+      string lastName,
+      string email);
 }
