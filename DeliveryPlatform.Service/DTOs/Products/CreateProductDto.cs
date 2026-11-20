@@ -19,7 +19,7 @@ public class CreateProductDto
     public int StockQuantity { get; set; }
 
     [Range(1, int.MaxValue)]
-    public int StoreId { get; set; }
+    public int? StoreId { get; set; }
 
     [Range(1, int.MaxValue)]
     public int CategoryId { get; set; }

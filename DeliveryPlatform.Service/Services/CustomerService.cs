@@ -1,6 +1,5 @@
 ﻿
 using DeliveryPlatform.Data.Context;
-using DeliveryPlatform.Data.Entities;
 using DeliveryPlatform.Service.DTOs.Customers;
 using DeliveryPlatform.Service.Interfaces;
 using DeliveryPlatform.Service.Exceptions;
@@ -19,42 +18,6 @@ namespace DeliveryPlatform.Service.Services
         {
             _context = context;
             _resourceAuthorization = resourceAuthorization;
-        }
-
-        // Create Customer
-        public async Task<CustomerDto> CreateCustomerAsync(
-            CreateCustomerDto customerDto)
-        {
-            if (!string.IsNullOrWhiteSpace(customerDto.Email))
-            {
-                bool emailExists = await _context.Customers
-                    .AnyAsync(c => c.Email == customerDto.Email);
-
-                if (emailExists)
-                    throw new ConflictException(
-                        "Email is already in use.");
-            }
-
-            var customer = new Customer
-            {
-                FirstName = customerDto.FirstName,
-                LastName = customerDto.LastName,
-                PhoneNumber = customerDto.PhoneNumber,
-                Email = customerDto.Email
-            };
-
-            _context.Customers.Add(customer);
-
-            await _context.SaveChangesAsync();
-
-            return new CustomerDto
-            {
-                Id = customer.Id,
-                FirstName = customer.FirstName,
-                LastName = customer.LastName,
-                PhoneNumber = customer.PhoneNumber,
-                Email = customer.Email
-            };
         }
 
         // Get Customer By Id
@@ -77,7 +40,10 @@ namespace DeliveryPlatform.Service.Services
                     Id = c.Id,
                     FirstName = c.FirstName,
                     LastName = c.LastName,
-                    PhoneNumber = c.PhoneNumber,
+                    PhoneNumber = _context.Users
+                        .Where(u => u.CustomerId == c.Id)
+                        .Select(u => u.PhoneNumber)
+                        .FirstOrDefault() ?? string.Empty,
                     Email = c.Email
                 })
                 .FirstOrDefaultAsync();
@@ -108,6 +74,12 @@ namespace DeliveryPlatform.Service.Services
             if (customer is null)
                 throw new NotFoundException("Customer not found.");
 
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.CustomerId == id);
+
+            if (user is null)
+                throw new NotFoundException("Customer account not found.");
+
             if (!string.IsNullOrWhiteSpace(customerDto.Email))
             {
                 bool emailExists = await _context.Customers
@@ -121,8 +93,9 @@ namespace DeliveryPlatform.Service.Services
 
             customer.FirstName = customerDto.FirstName;
             customer.LastName = customerDto.LastName;
-            customer.PhoneNumber = customerDto.PhoneNumber;
             customer.Email = customerDto.Email;
+
+            user.PhoneNumber = customerDto.PhoneNumber;
 
             await _context.SaveChangesAsync();
 
@@ -131,7 +104,7 @@ namespace DeliveryPlatform.Service.Services
                 Id = customer.Id,
                 FirstName = customer.FirstName,
                 LastName = customer.LastName,
-                PhoneNumber = customer.PhoneNumber,
+                PhoneNumber = user.PhoneNumber ?? string.Empty,
                 Email = customer.Email
             };
         }

@@ -145,7 +145,6 @@ public class DataSeeder : IDataSeeder
             {
                 FirstName = faker.Name.FirstName(),
                 LastName = faker.Name.LastName(),
-                PhoneNumber = $"079{i + 1:D7}",
                 Email = $"customer{i + 1}@example.com"
             });
         }
@@ -175,7 +174,7 @@ public class DataSeeder : IDataSeeder
         {
             users.Add(new User
             {
-                PhoneNumber = customer.PhoneNumber,
+                PhoneNumber = $"079{customer.Id:D7}",
                 Role = UserRole.Customer,
                 CustomerId = customer.Id
             });

@@ -3,6 +3,108 @@
 @baseUrl = https://localhost:7195
 
 ##################################################
+# DAY 1 - LOGIN FLOWS
+##################################################
+
+# Test variables
+@adminEmail = admin@example.com
+@adminPassword = PASTE_ADMIN_PASSWORD
+@partnerEmail = partner1@example.com
+@partnerPassword = PASTE_PARTNER_PASSWORD
+@customerPhone = PASTE_CUSTOMER_PHONE
+@customerOtp = PASTE_CUSTOMER_OTP
+@customerSignupToken = PASTE_CUSTOMER_SIGNUP_TOKEN
+@refreshToken = PASTE_REFRESH_TOKEN
+@accessToken = PASTE_ACCESS_TOKEN
+
+
+##################################################
+# 1 - ADMIN LOGIN
+##################################################
+
+### [1.1] Admin Staff Login
+POST {{baseUrl}}/api/v1/auth/staff-login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+
+##################################################
+# 2 - PARTNER LOGIN
+##################################################
+
+### [2.1] Partner Staff Login
+POST {{baseUrl}}/api/v1/auth/staff-login
+Content-Type: application/json
+
+{
+  "email": "{{partnerEmail}}",
+  "password": "{{partnerPassword}}"
+}
+
+
+##################################################
+# 3 - CUSTOMER OTP LOGIN
+##################################################
+
+### [3.1] Request OTP
+POST {{baseUrl}}/api/v1/auth/request-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "{{customerPhone}}"
+}
+
+### [3.2] Verify OTP
+POST {{baseUrl}}/api/v1/auth/verify-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "{{customerPhone}}",
+  "code": "{{customerOtp}}"
+}
+
+
+##################################################
+# 4 - REFRESH TOKENS
+##################################################
+
+### [4.1] Refresh Access Token
+POST {{baseUrl}}/api/v1/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+
+##################################################
+# 5 - GET CURRENT USER
+##################################################
+
+### [5.1] Get Current User
+GET {{baseUrl}}/api/v1/auth/me
+Authorization: Bearer {{accessToken}}
+
+
+##################################################
+# 6 - LOGOUT
+##################################################
+
+### [6.1] Logout
+POST {{baseUrl}}/api/v1/auth/logout
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+
+##################################################
 # DAY 2 - PART 6 - ATTACK TESTS
 ##################################################
 
@@ -21,14 +123,12 @@
 @tamperedToken = PASTE_TAMPERED_TOKEN
 @expiredAccessToken = PASTE_EXPIRED_ACCESS_TOKEN
 
-
 ##################################################
 # ATTACK 1 - NO TOKEN
 ##################################################
 
 ### [1] No Token
 GET {{baseUrl}}/api/v1/orders/900001
-
 
 ##################################################
 # ATTACK 2 - GARBAGE TOKEN
@@ -38,7 +138,6 @@ GET {{baseUrl}}/api/v1/orders/900001
 GET {{baseUrl}}/api/v1/orders/900001
 Authorization: Bearer abc.def.ghi
 
-
 ##################################################
 # ATTACK 3 - CUSTOMER A ACCESS CUSTOMER B ORDER
 ##################################################
@@ -46,7 +145,6 @@ Authorization: Bearer abc.def.ghi
 ### [3.1] Customer A accesses Customer B order
 GET {{baseUrl}}/api/v1/orders/{{customerBOrderId}}
 Authorization: Bearer {{customerAToken}}
-
 
 ##################################################
 # ATTACK 4 - PARTNER ACCESS ANOTHER STORE PRODUCT
@@ -65,7 +163,6 @@ Content-Type: application/json
   "categoryId": 1
 }
 
-
 ##################################################
 # ATTACK 5 - TAMPERED JWT
 ##################################################
@@ -74,7 +171,6 @@ Content-Type: application/json
 GET {{baseUrl}}/api/v1/orders/900001
 Authorization: Bearer {{tamperedToken}}
 
-
 ##################################################
 # ATTACK 6 - ALG NONE
 ##################################################
@@ -82,7 +178,6 @@ Authorization: Bearer {{tamperedToken}}
 ### [6.1] Unsigned token
 GET {{baseUrl}}/api/v1/orders/900001
 Authorization: Bearer PASTE_UNSIGNED_TEST_TOKEN
-
 
 ##################################################
 # ATTACK 7 - EXPIRED ACCESS TOKEN
@@ -99,7 +194,6 @@ Content-Type: application/json
 {
   "refreshToken": "{{refreshTokenToReuse}}"
 }
-
 
 ##################################################
 # ATTACK 8 - REUSE OLD REFRESH TOKEN
@@ -120,7 +214,6 @@ Content-Type: application/json
 {
   "refreshToken": "{{refreshTokenToReuse}}"
 }
-
 
 ##################################################
 # ATTACK 9 - OTP WRONG ATTEMPTS
@@ -180,7 +273,6 @@ Content-Type: application/json
   "code": "{{otpCode}}"
 }
 
-
 ##################################################
 # ATTACK 10 - USE OTP TWICE
 ##################################################
@@ -202,7 +294,6 @@ Content-Type: application/json
   "phoneNumber": "{{customerBPhone}}",
   "code": "{{otpCode}}"
 }
-
 
 ##################################################
 # ATTACK 11 - OTP RATE LIMIT
@@ -231,7 +322,6 @@ Content-Type: application/json
 {
   "phoneNumber": "{{rateLimitPhone}}"
 }
-
 
 ##################################################
 # ATTACK 12 - ACCOUNT ENUMERATION
@@ -270,4 +360,3 @@ Content-Type: application/json
   "email": "not-existing-user@example.com",
   "password": "DefinitelyWrongPassword123!"
 }
- Bearer {{partnerToken}}

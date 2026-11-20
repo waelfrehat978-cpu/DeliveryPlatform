@@ -48,6 +48,8 @@ Examples:
 | 409 Conflict | Conflict with existing data or business rules |
 | 422 Unprocessable Entity | A business rule prevents the requested operation |
 | 500 Internal Server Error | An unexpected server error occurred |
+| 401 Unauthorized | Authentication is required or the provided credentials are invalid |
+| 429 Too Many Requests | The client has sent too many requests within a given time |
 
 ## 5. Filtering, Sorting, and Pagination
 

@@ -5,9 +5,7 @@ namespace DeliveryPlatform.Service.Interfaces;
 
 public interface IRefreshTokenService
 {
-    string GenerateRefreshToken();
-
-    string HashRefreshToken(string token);
+  
 
     Task<TokenResponseDto> IssueTokenPairAsync(User user);
 

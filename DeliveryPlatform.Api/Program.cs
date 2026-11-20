@@ -149,7 +149,6 @@ builder.Services.AddScoped<IAddressService, AddressService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
-builder.Services.AddScoped<PasswordService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddSingleton<IClockService, ClockService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();

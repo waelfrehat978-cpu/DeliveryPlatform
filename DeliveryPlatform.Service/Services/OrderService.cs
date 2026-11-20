@@ -1,4 +1,4 @@
-
+using System.Security.Cryptography;
 using DeliveryPlatform.Data.Context;
 using DeliveryPlatform.Data.Entities;
 using DeliveryPlatform.Data.Enums;
@@ -17,21 +17,24 @@ namespace DeliveryPlatform.Service.Services
 {
     public class OrderService : IOrderService
     {
+        private readonly IClockService _clock;
         private readonly DeliveryPlatformDbContext _context;
         private readonly OrderOptions _orderOptions;
         private readonly IResourceAuthorizationService _resourceAuthorization;
         private readonly ICurrentUser _currentUser;
 
         public OrderService(
-            DeliveryPlatformDbContext context,
-            IOptions<OrderOptions> orderOptions,
-            IResourceAuthorizationService resourceAuthorization,
-            ICurrentUser currentUser)
+       DeliveryPlatformDbContext context,
+       IOptions<OrderOptions> orderOptions,
+       IResourceAuthorizationService resourceAuthorization,
+       ICurrentUser currentUser,
+       IClockService clock)
         {
             _context = context;
             _orderOptions = orderOptions.Value;
             _resourceAuthorization = resourceAuthorization;
             _currentUser = currentUser;
+            _clock = clock;
         }
 
         private static readonly Dictionary<OrderStatus, OrderStatus[]> AllowedTransitions = new()
@@ -53,15 +56,15 @@ namespace DeliveryPlatform.Service.Services
                 OrderStatus.OutForDelivery,
                 OrderStatus.Declined
             },
-
             [OrderStatus.OutForDelivery] = new[]
-            {
-                OrderStatus.Delivered,
-                OrderStatus.Cancelled
-            }
+{
+         OrderStatus.Delivered
+}
+
         };
 
         // Create Order
+
         public async Task<OrderResponseDto> CreateOrderAsync(
             CreateOrderDto request)
         {
@@ -88,30 +91,20 @@ namespace DeliveryPlatform.Service.Services
                 throw new ValidationException(
                     "Items",
                     "Duplicate products are not allowed.");
-
-            // Determine customer from the authenticated user.
-            int customerId;
-
-            if (_currentUser.Role == UserRole.Customer)
-            {
-                if (!_currentUser.CustomerId.HasValue)
-                {
-                    throw new ForbiddenException(
-                        "You do not have access to this customer.");
-                }
-
-                customerId = _currentUser.CustomerId.Value;
-            }
-            else if (_currentUser.Role == UserRole.Admin)
-            {
-                customerId = request.CustomerId;
-            }
-            else
+            // Only Customers can create orders.
+            if (_currentUser.Role != UserRole.Customer)
             {
                 throw new ForbiddenException(
                     "You are not allowed to create orders.");
             }
 
+            if (!_currentUser.CustomerId.HasValue)
+            {
+                throw new ForbiddenException(
+                    "You do not have access to this customer.");
+            }
+
+            int customerId = _currentUser.CustomerId.Value;
             await _resourceAuthorization.EnsureCustomerAccessAsync(
                 customerId);
 
@@ -162,16 +155,22 @@ namespace DeliveryPlatform.Service.Services
 
                 decimal deliveryFee = _orderOptions.DeliveryFee;
 
+                // Generate OrderCode: yyMM + 5 random digits + 3 sequence digits.
                 var sequenceNumber = await _context.Database
                     .SqlQuery<long>(
                         $"SELECT NEXT VALUE FOR dbo.OrderCodeSequence AS Value")
                     .SingleAsync();
+                var date = _clock.UtcNow;
 
-                var date = DateTime.UtcNow;
+                var randomPart = RandomNumberGenerator.GetInt32(
+                    0, 100_000);
+
+                var orderCode =
+                    $"{date:yyMM}{randomPart:D5}{sequenceNumber % 1000:D3}";
 
                 var order = new Order
                 {
-                    OrderCode = $"{date:yyMM}{sequenceNumber:D8}",
+                    OrderCode = orderCode,
                     CustomerId = customerId,
                     StoreId = request.StoreId,
                     AddressId = request.AddressId,
@@ -396,23 +395,29 @@ namespace DeliveryPlatform.Service.Services
                 if (order == null)
                     throw new NotFoundException("Order not found.");
 
-                var allowedStatuses = AllowedTransitions.TryGetValue(
-                    order.Status, out var nextStatuses)
-                        ? nextStatuses
-                        : Array.Empty<OrderStatus>();
-
-                if (!allowedStatuses.Contains(request.Status))
+                if (_currentUser.Role != UserRole.Admin)
                 {
-                    var allowedText = allowedStatuses.Length == 0
-                        ? "nothing, because this status is final"
-                        : string.Join(", ", allowedStatuses);
+                    var allowedStatuses = AllowedTransitions.TryGetValue(
+                        order.Status, out var nextStatuses)
+                            ? nextStatuses
+                            : Array.Empty<OrderStatus>();
 
-                    throw new BusinessRuleException(
-                        $"Cannot change order status from {order.Status} to {request.Status}. Allowed: {allowedText}.");
+                    if (!allowedStatuses.Contains(request.Status))
+                    {
+                        var allowedText = string.Join(", ", allowedStatuses);
+
+                        throw new BusinessRuleException(
+                            $"Cannot change order status from {order.Status} to {request.Status}. Allowed: {allowedText}.");
+                    }
                 }
+                // Return stock when the order is declined or cancelled.
+                var oldStatus = order.Status;
 
-                // Return stock only when Declined.
-                if (request.Status == OrderStatus.Declined)
+                if ((request.Status == OrderStatus.Declined ||
+                     request.Status == OrderStatus.Cancelled) &&
+                    (oldStatus == OrderStatus.Pending ||
+                     oldStatus == OrderStatus.Accepted ||
+                     oldStatus == OrderStatus.Preparing))
                 {
                     foreach (var line in order.OrderLines)
                     {
@@ -424,7 +429,6 @@ namespace DeliveryPlatform.Service.Services
                     }
                 }
 
-                var oldStatus = order.Status;
 
                 order.Status = request.Status;
 
