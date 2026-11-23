@@ -1,7 +1,9 @@
 ﻿
+using DeliveryPlatform.Data.Auditing;
 
 namespace DeliveryPlatform.Data.Entities
 {
+    [AuditedIn(typeof(CustomerAuditTrail))]
     public class Customer : BaseEntity
     {
         public string FirstName { get; set; } = string.Empty;

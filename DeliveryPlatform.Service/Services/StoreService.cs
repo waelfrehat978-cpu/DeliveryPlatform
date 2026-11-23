@@ -1,4 +1,5 @@
-﻿using DeliveryPlatform.Data.Context;
+﻿using DeliveryPlatform.Data.Auditing;
+using DeliveryPlatform.Data.Context;
 using DeliveryPlatform.Data.Entities;
 using DeliveryPlatform.Service.DTOs;
 using DeliveryPlatform.Service.DTOs.Stores;
@@ -10,11 +11,13 @@ namespace DeliveryPlatform.Service.Services
 {
     public class StoreService : IStoreService
     {
+        private readonly IAuditScope _auditScope;
         private readonly DeliveryPlatformDbContext _context;
 
-        public StoreService(DeliveryPlatformDbContext context)
+        public StoreService(DeliveryPlatformDbContext context, IAuditScope auditScope)
         {
             _context = context;
+            _auditScope = auditScope;
         }
 
         public async Task<PagedResultDto<StoreDto>> GetStoresAsync(
@@ -101,5 +104,72 @@ namespace DeliveryPlatform.Service.Services
                 ProductCount = 0
             };
         }
+        public async Task UpdateStoreNameAsync(int id, string name)
+        {
+            if (id <= 0)
+                throw new ValidationException(
+                    "id",
+                    "Store ID must be greater than 0.");
+
+            var store = await _context.Stores
+                .FirstOrDefaultAsync(s => s.Id == id);
+
+            if (store is null)
+                throw new NotFoundException("Store not found.");
+
+            using (_auditScope.Enable())
+            {
+                store.Name = name;
+
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        public async Task DeleteStoreAsync(int id)
+        {
+            if (id <= 0)
+                throw new ValidationException(
+                    "id",
+                    "Store ID must be greater than 0.");
+
+            var store = await _context.Stores
+                .FirstOrDefaultAsync(s => s.Id == id);
+
+            if (store is null)
+                throw new NotFoundException("Store not found.");
+
+            using (_auditScope.Enable())
+            {
+                var products = await _context.Products
+                    .Where(p => p.StoreId == id)
+                    .ToListAsync();
+
+                foreach (var product in products)
+                {
+                    _context.Products.Remove(product);
+                }
+
+                _context.Stores.Remove(store);
+
+                await _context.SaveChangesAsync();
+
+                /*
+                 جلبنا جميع منتجات المتجر.
+
+
+
+    استخدمنا Remove لكل منتج، وهذا عندك يتحول إلى Soft Delete بواسطة الـ Interceptor.
+
+
+
+    حذفنا المتجر منطقيًا.
+
+
+
+    نفّذنا SaveChangesAsync مرة واحدة.
+                 */
+            }
+        }
+
     }
 }

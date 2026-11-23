@@ -14,5 +14,6 @@ namespace DeliveryPlatform.Service.Interfaces
         Task<ProductDetailsDto> UpdateProductAsync(
     int id,
     UpdateProductDto request);
+        Task DeleteProductAsync(int id);
     }
 }

@@ -1,8 +1,9 @@
 ﻿using DeliveryPlatform.Service.DTOs.Orders;
 using DeliveryPlatform.Service.Interfaces;
+using DeliveryPlatform.Service.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
-using Microsoft.AspNetCore.Authorization;
 namespace DeliveryPlatform.Api.Controllers
 {
     [ApiController]
@@ -10,10 +11,13 @@ namespace DeliveryPlatform.Api.Controllers
     public class OrdersController : ControllerBase
     {
         private readonly IOrderService _orderService;
-
-        public OrdersController(IOrderService orderService)
+        private readonly IAuditHistoryService _auditHistoryService;
+        public OrdersController(
+         IOrderService orderService,
+         IAuditHistoryService auditHistoryService)
         {
             _orderService = orderService;
+            _auditHistoryService = auditHistoryService;
         }
 
         [Authorize(Roles = "Customer")]
@@ -65,6 +69,19 @@ namespace DeliveryPlatform.Api.Controllers
                 request);
 
             return Ok(result);
+
+        }
+        [Authorize(Roles = "Admin")]
+        [HttpGet("{orderId:int}/history")]
+        public async Task<IActionResult> GetOrderHistory(
+    int orderId,
+    [FromQuery, Range(1, int.MaxValue)] int page = 1,
+    [FromQuery, Range(1, 100)] int pageSize = 10)
+        {
+            var history = await _auditHistoryService
+                .GetOrderHistoryAsync(orderId, page, pageSize);
+
+            return Ok(history);
         }
     }
 }

@@ -12,5 +12,8 @@ namespace DeliveryPlatform.Service.Interfaces
         Task<StoreDetailsDto>
             GetStoreByIdAsync(int id);
         Task<StoreDetailsDto> CreateStoreAsync(CreateStoreDto request);
+        Task UpdateStoreNameAsync(int id, string name);
+
+        Task DeleteStoreAsync(int id);
     }
 }

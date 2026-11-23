@@ -49,3 +49,10 @@ Customer registration is now handled through:
 - **All:** Access to all applicable records or resources.
 - **Public:** Endpoint is accessible without authentication.
 - **—:** No permission.
+- ## 5. Audit History Authorization
+
+- Admin can read audit history for all products, orders, customers, and stores.
+- Partner can read product history only for products belonging to their own store.
+- Partner cannot read order, customer, or store audit history.
+- Customer cannot read any audit history.
+- Unauthorized access returns HTTP 403 Forbidden.

@@ -1,5 +1,9 @@
-﻿namespace DeliveryPlatform.Data.Entities
+﻿using DeliveryPlatform.Data.Auditing;
+
+namespace DeliveryPlatform.Data.Entities
 {
+
+    [AuditedIn(typeof(CustomerAuditTrail))]
     public class Address : BaseEntity
     {
         public int CustomerId { get; set; }

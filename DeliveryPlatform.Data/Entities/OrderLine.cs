@@ -1,5 +1,9 @@
-﻿namespace DeliveryPlatform.Data.Entities
+﻿
+using DeliveryPlatform.Data.Auditing;
+
+namespace DeliveryPlatform.Data.Entities
 {
+    [AuditedIn(typeof(OrderAuditTrail))]
     public class OrderLine : BaseEntity
     {
         public int OrderId { get; set; }

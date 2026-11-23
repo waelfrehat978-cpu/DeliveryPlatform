@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+using DeliveryPlatform.Data.Auditing;
 using DeliveryPlatform.Data.Context;
 using DeliveryPlatform.Data.Entities;
 using DeliveryPlatform.Data.Enums;
@@ -12,11 +12,13 @@ using DeliveryPlatform.Service.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Data;
+using System.Security.Cryptography;
 
 namespace DeliveryPlatform.Service.Services
 {
     public class OrderService : IOrderService
     {
+        private readonly IAuditScope _auditScope;
         private readonly IClockService _clock;
         private readonly DeliveryPlatformDbContext _context;
         private readonly OrderOptions _orderOptions;
@@ -28,13 +30,15 @@ namespace DeliveryPlatform.Service.Services
        IOptions<OrderOptions> orderOptions,
        IResourceAuthorizationService resourceAuthorization,
        ICurrentUser currentUser,
-       IClockService clock)
+       IClockService clock, IAuditScope auditScope)
         {
             _context = context;
             _orderOptions = orderOptions.Value;
             _resourceAuthorization = resourceAuthorization;
             _currentUser = currentUser;
             _clock = clock;
+            _auditScope=auditScope;
+
         }
 
         private static readonly Dictionary<OrderStatus, OrderStatus[]> AllowedTransitions = new()
@@ -410,8 +414,10 @@ namespace DeliveryPlatform.Service.Services
                             $"Cannot change order status from {order.Status} to {request.Status}. Allowed: {allowedText}.");
                     }
                 }
-                // Return stock when the order is declined or cancelled.
-                var oldStatus = order.Status;
+                using (_auditScope.Enable())
+                {
+                    // Return stock when the order is declined or cancelled.
+                    var oldStatus = order.Status;
 
                 if ((request.Status == OrderStatus.Declined ||
                      request.Status == OrderStatus.Cancelled) &&
@@ -428,21 +434,21 @@ namespace DeliveryPlatform.Service.Services
                             product.StockQuantity += line.Quantity;
                     }
                 }
+              
 
+                    order.Status = request.Status;
 
-                order.Status = request.Status;
+                    _context.OrderStatusHistories.Add(
+                        new OrderStatusHistory
+                        {
+                            OrderId = order.Id,
+                            OldStatus = oldStatus,
+                            Status = request.Status,
+                            Note = request.Note
+                        });
 
-                _context.OrderStatusHistories.Add(
-                    new OrderStatusHistory
-                    {
-                        OrderId = order.Id,
-                        OldStatus = oldStatus,
-                        Status = request.Status,
-                        Note = request.Note
-                    });
-
-                await _context.SaveChangesAsync();
-
+                    await _context.SaveChangesAsync();
+                }
                 await transaction.CommitAsync();
 
                 return MapOrderToResponse(order);

@@ -1,6 +1,8 @@
-﻿using DeliveryPlatform.Data.Enums;
+﻿using DeliveryPlatform.Data.Auditing;
+using DeliveryPlatform.Data.Enums;
 namespace DeliveryPlatform.Data.Entities
 {
+    [AuditedIn(typeof(OrderAuditTrail))]
     public class Order : BaseEntity
     {
         public string OrderCode { get; set; } = string.Empty;

@@ -1,4 +1,5 @@
 ﻿
+using DeliveryPlatform.Data.Auditing;
 using DeliveryPlatform.Data.Context;
 using DeliveryPlatform.Data.Entities;
 using DeliveryPlatform.Data.Enums;
@@ -13,6 +14,7 @@ namespace DeliveryPlatform.Service.Services
 {
     public class ProductService : IProductService
     {
+        private readonly IAuditScope _auditScope;
         private readonly DeliveryPlatformDbContext _context;
         private readonly IResourceAuthorizationService _resourceAuthorization;
         private readonly ICurrentUser _currentUser;
@@ -20,11 +22,12 @@ namespace DeliveryPlatform.Service.Services
         public ProductService(
             DeliveryPlatformDbContext context,
             IResourceAuthorizationService resourceAuthorization,
-            ICurrentUser currentUser)
+            ICurrentUser currentUser ,IAuditScope auditScope)
         {
             _context = context;
             _resourceAuthorization = resourceAuthorization;
             _currentUser = currentUser;
+            _auditScope=auditScope;
         }
 
         public async Task<PagedResultDto<ProductDto>> SearchProductsAsync(
@@ -254,13 +257,17 @@ namespace DeliveryPlatform.Service.Services
             }
 
 
-            product.Name = request.Name;
-            product.Description = request.Description;
-            product.Price = request.Price;
-            product.StockQuantity = request.StockQuantity;
-            product.CategoryId = request.CategoryId;
 
-            await _context.SaveChangesAsync();
+            using (_auditScope.Enable())
+            {
+                product.Name = request.Name;
+                product.Description = request.Description;
+                product.Price = request.Price;
+                product.StockQuantity = request.StockQuantity;
+                product.CategoryId = request.CategoryId;
+
+                await _context.SaveChangesAsync();
+            }
 
             return new ProductDetailsDto
             {
@@ -272,6 +279,28 @@ namespace DeliveryPlatform.Service.Services
                 StoreId = product.StoreId,
                 CategoryId = product.CategoryId
             };
+        }
+        public async Task DeleteProductAsync(int id)
+        {
+            if (id <= 0)
+                throw new ValidationException(
+                    "id",
+                    "Product Id must be greater than 0.");
+
+            await _resourceAuthorization.EnsureProductAccessAsync(id);
+
+            var product = await _context.Products
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (product is null)
+                throw new NotFoundException("Product not found.");
+
+            using (_auditScope.Enable())
+            {
+                _context.Products.Remove(product);
+
+                await _context.SaveChangesAsync();
+            }
         }
     }
 }

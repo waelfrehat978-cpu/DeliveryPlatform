@@ -360,3 +360,91 @@ Content-Type: application/json
   "email": "not-existing-user@example.com",
   "password": "DefinitelyWrongPassword123!"
 }
+
+##################################################
+# DAY 2.5 - PART 6 - AUDIT HISTORY
+##################################################
+
+# Test variables
+@adminAuditToken = PASTE_ADMIN_ACCESS_TOKEN
+@auditProductId = 120002
+@auditOrderId = PASTE_ORDER_ID
+@auditCustomerId = PASTE_CUSTOMER_ID
+@auditStoreId = PASTE_STORE_ID
+
+##################################################
+# 1 - UPDATE PRODUCT PRICE (ADMIN)
+##################################################
+
+### [1.1] Update Product Price
+PUT {{baseUrl}}/api/v1/products/{{auditProductId}}
+Authorization: Bearer {{adminAuditToken}}
+Content-Type: application/json
+
+{
+  "name": "Intelligent Soft Salad 1",
+  "description": "REPLACE_WITH_CURRENT_DESCRIPTION",
+  "price": 12.55,
+  "stockQuantity": 298,
+  "categoryId": 135
+}
+
+##################################################
+# 2 - READ PRODUCT AUDIT HISTORY
+##################################################
+
+### [2.1] Admin reads product history
+GET {{baseUrl}}/api/v1/products/{{auditProductId}}/history?page=1&pageSize=10
+Authorization: Bearer {{adminAuditToken}}
+
+### [2.2] Partner reads own product history
+GET {{baseUrl}}/api/v1/products/{{auditProductId}}/history?page=1&pageSize=10
+Authorization: Bearer {{partnerToken}}
+
+### [2.3] Customer attempts to read product history (Expected: 403)
+GET {{baseUrl}}/api/v1/products/{{auditProductId}}/history?page=1&pageSize=10
+Authorization: Bearer {{customerAToken}}
+
+### [2.4] Partner attempts another store product history (Expected: 403)
+GET {{baseUrl}}/api/v1/products/{{otherStoreProductId}}/history?page=1&pageSize=10
+Authorization: Bearer {{partnerToken}}
+
+##################################################
+# 3 - READ ORDER AUDIT HISTORY
+##################################################
+
+### [3.1] Admin reads order history
+GET {{baseUrl}}/api/v1/orders/{{auditOrderId}}/history?page=1&pageSize=10
+Authorization: Bearer {{adminAuditToken}}
+
+### [3.2] Partner attempts order history (Expected: 403)
+GET {{baseUrl}}/api/v1/orders/{{auditOrderId}}/history?page=1&pageSize=10
+Authorization: Bearer {{partnerToken}}
+
+### [3.3] Customer attempts order history (Expected: 403)
+GET {{baseUrl}}/api/v1/orders/{{auditOrderId}}/history?page=1&pageSize=10
+Authorization: Bearer {{customerAToken}}
+
+##################################################
+# 4 - READ CUSTOMER AUDIT HISTORY
+##################################################
+
+### [4.1] Admin reads customer history
+GET {{baseUrl}}/api/v1/customers/{{auditCustomerId}}/history?page=1&pageSize=10
+Authorization: Bearer {{adminAuditToken}}
+
+### [4.2] Partner attempts customer history (Expected: 403)
+GET {{baseUrl}}/api/v1/customers/{{auditCustomerId}}/history?page=1&pageSize=10
+Authorization: Bearer {{partnerToken}}
+
+##################################################
+# 5 - READ STORE AUDIT HISTORY
+##################################################
+
+### [5.1] Admin reads store history
+GET {{baseUrl}}/api/v1/stores/{{auditStoreId}}/history?page=1&pageSize=10
+Authorization: Bearer {{adminAuditToken}}
+
+### [5.2] Partner attempts store history (Expected: 403)
+GET {{baseUrl}}/api/v1/stores/{{auditStoreId}}/history?page=1&pageSize=10
+Authorization: Bearer {{partnerToken}}

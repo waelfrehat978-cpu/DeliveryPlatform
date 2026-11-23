@@ -1,23 +1,26 @@
 ﻿
+using DeliveryPlatform.Data.Auditing;
 using DeliveryPlatform.Data.Context;
 using DeliveryPlatform.Service.DTOs.Customers;
-using DeliveryPlatform.Service.Interfaces;
 using DeliveryPlatform.Service.Exceptions;
+using DeliveryPlatform.Service.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace DeliveryPlatform.Service.Services
 {
     public class CustomerService : ICustomerService
     {
+        private readonly IAuditScope _auditScope;
         private readonly DeliveryPlatformDbContext _context;
         private readonly IResourceAuthorizationService _resourceAuthorization;
 
         public CustomerService(
             DeliveryPlatformDbContext context,
-            IResourceAuthorizationService resourceAuthorization)
+            IResourceAuthorizationService resourceAuthorization,IAuditScope auditScope)
         {
             _context = context;
             _resourceAuthorization = resourceAuthorization;
+            _auditScope= auditScope;
         }
 
         // Get Customer By Id
@@ -68,6 +71,7 @@ namespace DeliveryPlatform.Service.Services
 
             await _resourceAuthorization.EnsureCustomerAccessAsync(id);
 
+
             var customer = await _context.Customers
                 .FirstOrDefaultAsync(c => c.Id == id);
 
@@ -90,15 +94,16 @@ namespace DeliveryPlatform.Service.Services
                     throw new ConflictException(
                         "Email is already in use.");
             }
+            using (_auditScope.Enable())
+            {
+                customer.FirstName = customerDto.FirstName;
+                customer.LastName = customerDto.LastName;
+                customer.Email = customerDto.Email;
 
-            customer.FirstName = customerDto.FirstName;
-            customer.LastName = customerDto.LastName;
-            customer.Email = customerDto.Email;
+                user.PhoneNumber = customerDto.PhoneNumber;
 
-            user.PhoneNumber = customerDto.PhoneNumber;
-
-            await _context.SaveChangesAsync();
-
+                await _context.SaveChangesAsync();
+            }
             return new CustomerDto
             {
                 Id = customer.Id,
