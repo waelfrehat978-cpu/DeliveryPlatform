@@ -35,14 +35,19 @@ namespace DeliveryPlatform.Service.Services
             var amman = TimeZoneInfo.FindSystemTimeZoneById(
                 "Asia/Amman");
 
-            var last30DaysStartUtc = _clock.UtcNow.AddDays(-30);
+            var nowUtc = _clock.UtcNow;//الوقت الحالي بتوقيت UTC
 
+            var nowInAmman = TimeZoneInfo.ConvertTimeFromUtc(
+                nowUtc,
+                amman);//الوقت الحالي بتوقيت عمّان
 
             var todayStartUtc = TimeZoneInfo.ConvertTimeToUtc(
-                last30DaysStartUtc.Date, amman);
+                nowInAmman.Date,
+                amman);//بداية اليوم الحالي بتوقيت UTC
 
-            var tomorrowStartUtc = todayStartUtc.AddDays(1);
+            var tomorrowStartUtc = todayStartUtc.AddDays(1);//بداية اليوم التالي بتوقيت UTC
 
+            var last30DaysStartUtc = nowUtc.AddDays(-30);//	الوقت قبل 30 يومًا
 
             // Base query for store orders
             var storeOrdersQuery = _context.Orders

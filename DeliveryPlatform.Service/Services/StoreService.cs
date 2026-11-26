@@ -1,4 +1,5 @@
-﻿using DeliveryPlatform.Data.Auditing;
+﻿
+using DeliveryPlatform.Data.Auditing;
 using DeliveryPlatform.Data.Context;
 using DeliveryPlatform.Data.Entities;
 using DeliveryPlatform.Service.DTOs;
@@ -11,13 +12,18 @@ namespace DeliveryPlatform.Service.Services
 {
     public class StoreService : IStoreService
     {
+        private readonly IResourceAuthorizationService _resourceAuthorization;
         private readonly IAuditScope _auditScope;
         private readonly DeliveryPlatformDbContext _context;
 
-        public StoreService(DeliveryPlatformDbContext context, IAuditScope auditScope)
+        public StoreService(
+            DeliveryPlatformDbContext context,
+            IAuditScope auditScope,
+            IResourceAuthorizationService resourceAuthorization)
         {
             _context = context;
             _auditScope = auditScope;
+            _resourceAuthorization = resourceAuthorization;
         }
 
         public async Task<PagedResultDto<StoreDto>> GetStoresAsync(
@@ -32,6 +38,7 @@ namespace DeliveryPlatform.Service.Services
                 throw new ValidationException(
                     "pageSize",
                     "PageSize must be between 1 and 100.");
+
             var query = _context.Stores.AsNoTracking();
 
             if (!string.IsNullOrWhiteSpace(name))
@@ -42,8 +49,8 @@ namespace DeliveryPlatform.Service.Services
             var totalCount = await query.CountAsync();
 
             var stores = await query
-               .OrderBy(s => s.Name)
-            .ThenBy(s => s.Id)
+                .OrderBy(s => s.Name)
+                .ThenBy(s => s.Id)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Select(s => new StoreDto
@@ -64,7 +71,7 @@ namespace DeliveryPlatform.Service.Services
 
         public async Task<StoreDetailsDto> GetStoreByIdAsync(int id)
         {
-            var store= await _context.Stores
+            var store = await _context.Stores
                 .AsNoTracking()
                 .Where(s => s.Id == id)
                 .Select(s => new StoreDetailsDto
@@ -76,13 +83,15 @@ namespace DeliveryPlatform.Service.Services
                     ProductCount = _context.Products.Count(p => p.StoreId == s.Id)
                 })
                 .FirstOrDefaultAsync();
+
             if (store is null)
                 throw new NotFoundException("Store not found.");
 
             return store;
         }
+
         public async Task<StoreDetailsDto> CreateStoreAsync(
-    CreateStoreDto request)
+            CreateStoreDto request)
         {
             var store = new Store
             {
@@ -104,12 +113,15 @@ namespace DeliveryPlatform.Service.Services
                 ProductCount = 0
             };
         }
+
         public async Task UpdateStoreNameAsync(int id, string name)
         {
             if (id <= 0)
                 throw new ValidationException(
                     "id",
                     "Store ID must be greater than 0.");
+
+            await _resourceAuthorization.EnsureStoreAccessAsync(id);
 
             var store = await _context.Stores
                 .FirstOrDefaultAsync(s => s.Id == id);
@@ -132,6 +144,8 @@ namespace DeliveryPlatform.Service.Services
                     "id",
                     "Store ID must be greater than 0.");
 
+            await _resourceAuthorization.EnsureStoreAccessAsync(id);
+
             var store = await _context.Stores
                 .FirstOrDefaultAsync(s => s.Id == id);
 
@@ -152,24 +166,7 @@ namespace DeliveryPlatform.Service.Services
                 _context.Stores.Remove(store);
 
                 await _context.SaveChangesAsync();
-
-                /*
-                 جلبنا جميع منتجات المتجر.
-
-
-
-    استخدمنا Remove لكل منتج، وهذا عندك يتحول إلى Soft Delete بواسطة الـ Interceptor.
-
-
-
-    حذفنا المتجر منطقيًا.
-
-
-
-    نفّذنا SaveChangesAsync مرة واحدة.
-                 */
             }
         }
-
     }
 }

@@ -6,8 +6,6 @@ namespace DeliveryPlatform.Service.DTOs.Orders
     public class CreateOrderDto
     {
         [Range(1, int.MaxValue)]
-        public int CustomerId { get; set; }
-        [Range(1, int.MaxValue)]
         public int StoreId { get; set; }
         [Range(1, int.MaxValue)]
         public int AddressId { get; set; }

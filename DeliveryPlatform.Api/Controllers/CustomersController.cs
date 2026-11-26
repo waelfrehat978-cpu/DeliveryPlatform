@@ -46,6 +46,11 @@ namespace DeliveryPlatform.Api.Controllers
 
         [Authorize(Roles = "Admin")]
         [HttpGet("{id:int}/history")]
+        /*
+         istory
+هذا الجزء يحدد أن الطلب خاص بتاريخ (History).
+يعني نريد جلب سجل التغييرات أو الأحداث المرتبطة بالطلب
+         */
         public async Task<IActionResult> GetCustomerHistory(
             int id,
             [FromQuery, Range(1, int.MaxValue)] int page = 1,

@@ -4,25 +4,35 @@
 **Environment:** Local Development API  
 **Base URL:** `https://localhost:7195`  
 **Testing Tool:** Postman  
-**Purpose:** Record the results of 13 controlled security tests against the project's own API.
+**Purpose:** Document 13 controlled security tests against the project's own API.
+
+---
+
+## Important Documentation Notice
+
+**The response bodies and HTTP status codes in this document are illustrative examples only. They are not actual Postman captures or verified server responses.**
+
+They are included to demonstrate the intended documentation format. Actual results must be recorded from Postman before this document is submitted as evidence.
+
+---
 
 ## Result Summary
 
-| Attack | Description | Result |
-|---|---|---|
-| 1 | No Token | BLOCKED |
-| 2 | Garbage Token | BLOCKED |
-| 3 | Cross-Customer Order | BLOCKED |
-| 4 | Cross-Store Product | BLOCKED |
-| 5 | Tampered JWT | BLOCKED |
-| 6 | alg:none JWT | BLOCKED |
-| 7 | Expired Access Token | BLOCKED |
-| 8 | Refresh Token Reuse | BLOCKED |
-| 9 | OTP Guessing | BLOCKED |
-| 10 | OTP Reuse | BLOCKED |
-| 11 | OTP Flooding | BLOCKED |
-| 12 | Account Enumeration | BLOCKED |
-| 13 | Signup Token Reuse / Invalid Token | BLOCKED |
+| Attack | Description | Illustrative Expected Result | Verification |
+|---|---|---|---|
+| 1 | No Token | 401 Unauthorized | NOT VERIFIED |
+| 2 | Garbage Token | 401 Unauthorized | NOT VERIFIED |
+| 3 | Cross-Customer Order | 403 Forbidden | NOT VERIFIED |
+| 4 | Cross-Store Product | 403 Forbidden | NOT VERIFIED |
+| 5 | Tampered JWT | 401 Unauthorized | NOT VERIFIED |
+| 6 | alg:none JWT | 401 Unauthorized | NOT VERIFIED |
+| 7 | Expired Access Token | 401 Unauthorized | NOT VERIFIED |
+| 8 | Refresh Token Reuse | 401 Unauthorized | NOT VERIFIED |
+| 9 | OTP Guessing | 400 / 429 | NOT VERIFIED |
+| 10 | OTP Reuse | 400 Bad Request | NOT VERIFIED |
+| 11 | OTP Flooding | 429 / Request Rejected | NOT VERIFIED |
+| 12 | Account Enumeration | Responses should not reveal account existence | NOT VERIFIED |
+| 13 | Signup Token Reuse / Invalid Token | 400 Bad Request | NOT VERIFIED |
 
 ---
 
@@ -37,16 +47,25 @@ GET /api/v1/orders/1
 
 **Authorization:** No Auth
 
-**Response:**
+**Illustrative Expected Response:**
 ```http
 401 Unauthorized
 ```
 
-**Response Body:** [Paste actual Postman response body]
+**Illustrative Response Body:**
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized",
+  "errors": null
+}
+```
 
-**Result:** BLOCKED
+**Illustrative Result:** BLOCKED
 
-**Conclusion:** The API rejected the unauthenticated request.
+**Verification:** NOT VERIFIED
+
+**Conclusion:** The expected behavior is that the API rejects unauthenticated requests.
 
 ---
 
@@ -60,16 +79,25 @@ GET /api/v1/orders/1
 Authorization: Bearer abc.def.ghi
 ```
 
-**Response:**
+**Illustrative Expected Response:**
 ```http
 401 Unauthorized
 ```
 
-**Response Body:** [Paste actual Postman response body]
+**Illustrative Response Body:**
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized",
+  "errors": null
+}
+```
 
-**Result:** BLOCKED
+**Illustrative Result:** BLOCKED
 
-**Conclusion:** The API rejected the invalid token.
+**Verification:** NOT VERIFIED
+
+**Conclusion:** The expected behavior is that the API rejects malformed JWT tokens.
 
 ---
 
@@ -88,16 +116,25 @@ GET /api/v1/orders/1108461
 Authorization: Bearer {{customerAToken}}
 ```
 
-**Response:**
+**Illustrative Expected Response:**
 ```http
 403 Forbidden
 ```
 
-**Response Body:** [Paste actual Postman response body]
+**Illustrative Response Body:**
+```json
+{
+  "statusCode": 403,
+  "message": "You are not authorized to access this resource.",
+  "errors": null
+}
+```
 
-**Result:** BLOCKED
+**Illustrative Result:** BLOCKED
 
-**Conclusion:** The API returned 403 Forbidden when Customer A attempted to access Customer B's order.
+**Verification:** NOT VERIFIED
+
+**Conclusion:** The expected behavior is that a customer cannot access another customer's order.
 
 ---
 
@@ -116,15 +153,33 @@ PUT /api/v1/products/{productId}
 Authorization: Bearer {{partnerAToken}}
 ```
 
-**Request Body:** [Paste the actual request body]
+**Request Body — Illustrative Example:**
+```json
+{
+  "name": "Unauthorized Product Update",
+  "price": 100.00
+}
+```
 
-**Response Status:** [Actual status code]
+**Illustrative Expected Response:**
+```http
+403 Forbidden
+```
 
-**Response Body:** [Paste actual Postman response body]
+**Illustrative Response Body:**
+```json
+{
+  "statusCode": 403,
+  "message": "You are not authorized to access this resource.",
+  "errors": null
+}
+```
 
-**Result:** BLOCKED
+**Illustrative Result:** BLOCKED
 
-**Conclusion:** The API prevented Partner A from modifying a product belonging to another store.
+**Verification:** NOT VERIFIED
+
+**Conclusion:** The expected behavior is that a Partner cannot modify products owned by another store.
 
 ---
 
@@ -138,13 +193,25 @@ GET /api/v1/orders/1
 Authorization: Bearer {{tamperedToken}}
 ```
 
-**Response Status:** [Actual status code]
+**Illustrative Expected Response:**
+```http
+401 Unauthorized
+```
 
-**Response Body:** [Paste actual Postman response body]
+**Illustrative Response Body:**
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized",
+  "errors": null
+}
+```
 
-**Result:** BLOCKED
+**Illustrative Result:** BLOCKED
 
-**Conclusion:** The API rejected the modified JWT.
+**Verification:** NOT VERIFIED
+
+**Conclusion:** The expected behavior is that the API rejects JWT tokens with invalid signatures.
 
 ---
 
@@ -158,13 +225,25 @@ GET /api/v1/orders/1
 Authorization: Bearer {{unsignedToken}}
 ```
 
-**Response Status:** [Actual status code]
+**Illustrative Expected Response:**
+```http
+401 Unauthorized
+```
 
-**Response Body:** [Paste actual Postman response body]
+**Illustrative Response Body:**
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized",
+  "errors": null
+}
+```
 
-**Result:** BLOCKED
+**Illustrative Result:** BLOCKED
 
-**Conclusion:** The API rejected the unsigned JWT.
+**Verification:** NOT VERIFIED
+
+**Conclusion:** The expected behavior is that the API rejects unsigned JWT tokens.
 
 ---
 
@@ -178,13 +257,25 @@ GET /api/v1/orders/1
 Authorization: Bearer {{expiredAccessToken}}
 ```
 
-**Response Status:** [Actual status code]
+**Illustrative Expected Response:**
+```http
+401 Unauthorized
+```
 
-**Response Body:** [Paste actual Postman response body]
+**Illustrative Response Body:**
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized",
+  "errors": null
+}
+```
 
-**Result:** BLOCKED
+**Illustrative Result:** BLOCKED
 
-**Conclusion:** The API rejected the expired access token.
+**Verification:** NOT VERIFIED
+
+**Conclusion:** The expected behavior is that the API rejects expired access tokens.
 
 ---
 
@@ -210,13 +301,25 @@ Content-Type: application/json
 }
 ```
 
-**Response Status:** [Actual status code]
+**Illustrative Expected Response:**
+```http
+401 Unauthorized
+```
 
-**Response Body:** [Paste actual Postman response body]
+**Illustrative Response Body:**
+```json
+{
+  "statusCode": 401,
+  "message": "Invalid or revoked refresh token.",
+  "errors": null
+}
+```
 
-**Result:** BLOCKED
+**Illustrative Result:** BLOCKED
 
-**Conclusion:** The API rejected the previously rotated refresh token.
+**Verification:** NOT VERIFIED
+
+**Conclusion:** The expected behavior is that the API rejects previously rotated or revoked refresh tokens.
 
 ---
 
@@ -238,13 +341,25 @@ Content-Type: application/json
 }
 ```
 
-**Response Status:** [Actual status code]
+**Illustrative Expected Response:**
+```http
+400 Bad Request
+```
 
-**Response Body:** [Paste actual Postman response body]
+**Illustrative Response Body:**
+```json
+{
+  "statusCode": 400,
+  "message": "Invalid or expired OTP.",
+  "errors": null
+}
+```
 
-**Result:** BLOCKED
+**Illustrative Result:** BLOCKED
 
-**Conclusion:** [Describe the actual attempt-limit or rejection behavior observed.]
+**Verification:** NOT VERIFIED
+
+**Conclusion:** The expected behavior is that incorrect OTP attempts are rejected and the configured attempt limit is enforced.
 
 ---
 
@@ -271,13 +386,25 @@ Content-Type: application/json
 }
 ```
 
-**Response Status:** [Actual status code]
+**Illustrative Expected Response:**
+```http
+400 Bad Request
+```
 
-**Response Body:** [Paste actual Postman response body]
+**Illustrative Response Body:**
+```json
+{
+  "statusCode": 400,
+  "message": "Invalid or expired OTP.",
+  "errors": null
+}
+```
 
-**Result:** BLOCKED
+**Illustrative Result:** BLOCKED
 
-**Conclusion:** The API rejected the previously used OTP.
+**Verification:** NOT VERIFIED
+
+**Conclusion:** The expected behavior is that a previously used OTP is rejected.
 
 ---
 
@@ -298,13 +425,25 @@ Content-Type: application/json
 }
 ```
 
-**Response Status:** [Actual status code]
+**Illustrative Expected Response:**
+```http
+429 Too Many Requests
+```
 
-**Response Body:** [Paste actual Postman response body]
+**Illustrative Response Body:**
+```json
+{
+  "statusCode": 429,
+  "message": "Too many requests. Please try again later.",
+  "errors": null
+}
+```
 
-**Result:** BLOCKED
+**Illustrative Result:** BLOCKED
 
-**Conclusion:** [Describe the actual rate-limit or request-control behavior observed.]
+**Verification:** NOT VERIFIED
+
+**Conclusion:** The expected behavior is that repeated OTP requests are controlled by the configured request limits. The actual status and message depend on the implemented mechanism.
 
 ---
 
@@ -314,7 +453,10 @@ Content-Type: application/json
 
 ### Test A — Registered Phone
 
-**Request:** `POST /api/v1/auth/request-otp`
+**Request:**
+```http
+POST /api/v1/auth/request-otp
+```
 
 **Request Body:**
 ```json
@@ -323,13 +465,23 @@ Content-Type: application/json
 }
 ```
 
-**Status:** [Actual status code]  
-**Response Body:** [Actual response body]  
-**Postman Response Time:** [Actual time in ms]
+**Illustrative Response:**
+```json
+{
+  "message": "If the account is eligible, an OTP will be sent."
+}
+```
+
+**Status:** NOT VERIFIED
+
+**Response Time:** NOT RECORDED
 
 ### Test B — Unregistered Phone
 
-**Request:** `POST /api/v1/auth/request-otp`
+**Request:**
+```http
+POST /api/v1/auth/request-otp
+```
 
 **Request Body:**
 ```json
@@ -338,13 +490,23 @@ Content-Type: application/json
 }
 ```
 
-**Status:** [Actual status code]  
-**Response Body:** [Actual response body]  
-**Postman Response Time:** [Actual time in ms]
+**Illustrative Response:**
+```json
+{
+  "message": "If the account is eligible, an OTP will be sent."
+}
+```
+
+**Status:** NOT VERIFIED
+
+**Response Time:** NOT RECORDED
 
 ### Test C — Registered Staff Email With Wrong Password
 
-**Request:** `POST /api/v1/auth/staff-login`
+**Request:**
+```http
+POST /api/v1/auth/staff-login
+```
 
 **Request Body:**
 ```json
@@ -354,13 +516,25 @@ Content-Type: application/json
 }
 ```
 
-**Status:** [Actual status code]  
-**Response Body:** [Actual response body]  
-**Postman Response Time:** [Actual time in ms]
+**Illustrative Response:**
+```json
+{
+  "statusCode": 401,
+  "message": "Invalid email or password.",
+  "errors": null
+}
+```
+
+**Status:** NOT VERIFIED
+
+**Response Time:** NOT RECORDED
 
 ### Test D — Unregistered Staff Email With Wrong Password
 
-**Request:** `POST /api/v1/auth/staff-login`
+**Request:**
+```http
+POST /api/v1/auth/staff-login
+```
 
 **Request Body:**
 ```json
@@ -370,15 +544,30 @@ Content-Type: application/json
 }
 ```
 
-**Status:** [Actual status code]  
-**Response Body:** [Actual response body]  
-**Postman Response Time:** [Actual time in ms]
+**Illustrative Response:**
+```json
+{
+  "statusCode": 401,
+  "message": "Invalid email or password.",
+  "errors": null
+}
+```
 
-**Comparison:** Compare the status codes, response messages, and response times across repeated runs. Record the actual observations.
+**Status:** NOT VERIFIED
 
-**Result:** BLOCKED
+**Response Time:** NOT RECORDED
 
-**Conclusion:** [State whether the responses reveal account existence based on the observed results.]
+### Comparison
+
+The illustrative examples show generic responses that do not disclose account existence.
+
+Actual status codes, response bodies, and response times must be compared using Postman before confirming that account enumeration is blocked.
+
+**Illustrative Result:** NOT VERIFIED
+
+**Verification:** NOT VERIFIED
+
+**Conclusion:** The intended behavior is to use generic authentication responses that do not reveal whether an account exists.
 
 ---
 
@@ -407,22 +596,39 @@ Content-Type: application/json
 }
 ```
 
-**Response Status:** [Actual status code]
+**Illustrative Expected Response:**
+```http
+400 Bad Request
+```
 
-**Response Body:** [Paste actual Postman response body]
+**Illustrative Response Body:**
+```json
+{
+  "statusCode": 400,
+  "message": "Invalid or expired signup token.",
+  "errors": null
+}
+```
 
-**Result:** BLOCKED
+**Illustrative Result:** BLOCKED
 
-**Conclusion:** The API rejected the reused or invalid signup token.
+**Verification:** NOT VERIFIED
+
+**Conclusion:** The expected behavior is that the API rejects reused or invalid signup tokens.
 
 ---
 
 ## Final Assessment
 
-- Total attacks: 13
-- BLOCKED: 13
-- GOT IN: 0
-- Pending documentation details: Fill in the actual response bodies, status codes, and timing measurements where indicated.
+- Total security test scenarios: 13
+- Illustrative expected blocked outcomes: 13
+- Actual verified outcomes: NOT VERIFIED
+- Actual GOT IN count: NOT DETERMINED
+- Actual Postman evidence: Not included in this illustrative document.
+
+**Important:** The illustrative examples must not be presented as actual test evidence. Update the verification status and response details after capturing real Postman results.
+
+---
 
 ## Security Notes
 
@@ -431,3 +637,4 @@ Content-Type: application/json
 - Any attack marked GOT IN must be investigated, fixed, and retested.
 - Preserve both the original and retest results when a security fix is applied.
 - Record actual Postman responses; never replace missing observations with expected results.
+- Clearly distinguish illustrative examples from verified test evidence.

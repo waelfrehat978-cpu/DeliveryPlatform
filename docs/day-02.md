@@ -34,6 +34,7 @@ The application uses two separate tables: `User` and `Customer`.
 | PasswordHash | Hashed staff password |
 | Role | Customer, Partner, or Admin |
 | CustomerId | Optional link to the Customer record |
+| StoreId | Optional link to the Store record for Partner accounts |
 
 **Customer table:**
 
@@ -683,19 +684,25 @@ This avoids unnecessary password hashing during development seeding without weak
 
 ### 8. Day 1 vs Day 2 Seeding Time
 
-The Day 2 seed results are documented above.
-
-The Day 1 comparison must use the actual measurements from `docs/day-01.md`.
+The Day 1 and Day 2 seed measurements are compared below.
 
 | Measurement | Day 1 | Day 2 |
 |---|---:|---:|
-| Total duration | TODO: Add Day 1 result | 56.317 sec |
-| Customer rows | TODO: Add Day 1 result | 20,000 |
-| User rows | TODO: Add Day 1 result | 20,051 |
+| Total duration | Not recorded | 56.317 sec |
+| Customer rows | 20,000 | 20,000 |
+| User rows | Not applicable | 20,051 |
 
-The Day 2 seed includes the new `Users` table and 51 password hashes. The remaining seed data is largely unchanged.
+**Explanation:**
 
-تتضمن بيانات Day 2 جدول `Users` الجديد و51 عملية Password Hash. أما بقية بيانات Seed فلم تتغير بشكل كبير.
+The User table was introduced in Day 2 as part of the authentication implementation. Therefore, Day 1 did not include User records.
+
+Day 2 added 20,051 User records: 20,000 Customer users, 50 Partner users, and 1 Admin user.
+
+**بالعربي:**
+
+تمت إضافة جدول User في Day 2 ضمن تنفيذ نظام المصادقة. لذلك لم يكن موجوداً ضمن بيانات Day 1.
+
+في Day 2 تمت إضافة 20,051 مستخدماً: 20,000 Customer و50 Partner وAdmin واحد.
 
 ### 9. Order Code Sequence
 
@@ -727,31 +734,67 @@ Refresh token generation, storage, rotation, reuse detection, logout, and full d
 
 ## Part 6 – Security Testing
 
-### 1. Attack Testing Results
+### 1. Security Testing Overview
 
-The authorization and authentication tests were performed against the local DeliveryPlatform API.
+Thirteen controlled security test scenarios were documented for the local DeliveryPlatform API using Postman.
 
-تم إجراء اختبارات المصادقة والصلاحيات على نسخة DeliveryPlatform المحلية.
+The scenarios cover authentication, authorization, JWT validation, refresh token reuse, OTP protection, and account enumeration.
 
-The tests checked whether protected endpoints reject unauthorized requests and whether users can access only resources they are allowed to access.
+تم توثيق 13 سيناريو لاختبار أمان API باستخدام Postman، وتشمل المصادقة والصلاحيات والتحقق من JWT وإعادة استخدام Refresh Tokens وحماية OTP وكشف الحسابات.
 
-تحققت الاختبارات من رفض الطلبات غير المصرح بها، ومن أن المستخدم لا يستطيع الوصول إلا إلى الموارد المسموح له بها.
+### 2. Test Documentation Status
 
-### 2. GOT IN Count
+The Attack Log contains illustrative response examples to demonstrate the expected documentation format.
 
-**Number of attacks that successfully GOT IN: TODO**
+These examples are not actual Postman captures or verified test results.
 
-عدد الهجمات التي نجحت في تجاوز الحماية: **TODO**
+يحتوي سجل الهجمات على أمثلة توضيحية لشكل الاستجابات المتوقعة، لكنها ليست تسجيلات فعلية من Postman أو نتائج اختبارات موثقة.
 
-### 3. How Were the Issues Fixed?
+| Metric | Status |
+|---|---|
+| Documented test scenarios | 13 |
+| Actual verified test results | Not available |
+| Actual GOT IN count | Not determined |
+| Actual BLOCKED count | Not determined |
+| Postman response evidence | Not available |
 
-The identified issues were addressed through changes to authentication, authorization, resource ownership checks, and token validation.
+### 3. Security Areas Covered
 
-تمت معالجة المشكلات المكتشفة من خلال تعديلات على المصادقة والصلاحيات وفحوصات ملكية الموارد والتحقق من Tokens.
+The documented scenarios cover:
 
-**Specific result:** TODO – Add the actual number of successful unauthorized accesses and identify the fixes that prevented them.
+- Requests without authentication.
+- Invalid, tampered, unsigned, and expired JWT tokens.
+- Cross-customer order access.
+- Cross-store product modification.
+- Refresh token reuse.
+- OTP guessing, reuse, and flooding.
+- Account enumeration.
+- Signup token reuse and invalid tokens.
 
-**النتيجة الفعلية:** TODO – أضف العدد الحقيقي لحالات الوصول غير المصرح بها، واذكر الإصلاحات التي منعتها.
+### 4. Security Improvements Implemented
+
+The project includes the following security mechanisms:
+
+- JWT authentication and token validation.
+- Role-based authorization for Customer, Partner, and Admin.
+- Database-backed resource ownership checks.
+- Refresh token hashing, rotation, and reuse detection.
+- OTP expiration and incorrect-attempt limits.
+- OTP request cooldown and hourly request limits.
+- Hashed signup tokens with single-use behavior.
+- Generic staff authentication error messages.
+
+### 5. Final Assessment
+
+The security mechanisms listed above have been implemented as part of Day 2.
+
+However, the 13 Attack Log scenarios still require actual Postman evidence before their individual results can be confirmed.
+
+No verified GOT IN or BLOCKED count is claimed in this documentation.
+
+**Part 6 documentation status: Updated.**
+
+**Security test verification status: Pending actual evidence.**
 
 ---
 

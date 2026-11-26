@@ -99,9 +99,6 @@ namespace DeliveryPlatform.Service.Services
                 customer.FirstName = customerDto.FirstName;
                 customer.LastName = customerDto.LastName;
                 customer.Email = customerDto.Email;
-
-                user.PhoneNumber = customerDto.PhoneNumber;
-
                 await _context.SaveChangesAsync();
             }
             return new CustomerDto

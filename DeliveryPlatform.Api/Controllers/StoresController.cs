@@ -43,7 +43,7 @@ namespace DeliveryPlatform.Api.Controllers
 
             return Ok(store);
         }
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Partner,Admin")]
         [HttpPost]
         public async Task<IActionResult> CreateStore(
     [FromBody] CreateStoreDto request)
@@ -55,7 +55,7 @@ namespace DeliveryPlatform.Api.Controllers
                 new { id = store.Id },
                 store);
         }
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Partner,Admin")]
         [HttpPut("{id:int}/name")]
         public async Task<IActionResult> UpdateStoreName(
     int id,
@@ -65,7 +65,7 @@ namespace DeliveryPlatform.Api.Controllers
 
             return NoContent();
         }
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Partner,Admin")]
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> DeleteStore(int id)
         {
@@ -73,7 +73,7 @@ namespace DeliveryPlatform.Api.Controllers
 
             return NoContent();
         }
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Partner,Admin")]
         [HttpGet("{id:int}/history")]
         public async Task<IActionResult> GetStoreHistory(
     int id,

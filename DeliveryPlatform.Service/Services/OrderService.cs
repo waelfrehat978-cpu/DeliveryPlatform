@@ -12,6 +12,7 @@ using DeliveryPlatform.Service.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Data;
+using Microsoft.EntityFrameworkCore.Storage;
 using System.Security.Cryptography;
 
 namespace DeliveryPlatform.Service.Services
@@ -159,11 +160,23 @@ namespace DeliveryPlatform.Service.Services
 
                 decimal deliveryFee = _orderOptions.DeliveryFee;
 
-                // Generate OrderCode: yyMM + 5 random digits + 3 sequence digits.
-                var sequenceNumber = await _context.Database
-                    .SqlQuery<long>(
-                        $"SELECT NEXT VALUE FOR dbo.OrderCodeSequence AS Value")
-                    .SingleAsync();
+                var connection = _context.Database.GetDbConnection();
+
+                await using var command = connection.CreateCommand();
+
+                command.CommandText =
+                    "SELECT NEXT VALUE FOR dbo.OrderCodeSequence;";
+
+                var currentTransaction = _context.Database.CurrentTransaction;
+
+                if (currentTransaction != null)
+                {
+                    command.Transaction = currentTransaction.GetDbTransaction();
+                }
+
+                var sequenceResult = await command.ExecuteScalarAsync();
+
+                var sequenceNumber = Convert.ToInt64(sequenceResult);
                 var date = _clock.UtcNow;
 
                 var randomPart = RandomNumberGenerator.GetInt32(
@@ -408,7 +421,9 @@ namespace DeliveryPlatform.Service.Services
 
                     if (!allowedStatuses.Contains(request.Status))
                     {
-                        var allowedText = string.Join(", ", allowedStatuses);
+                        var allowedText = allowedStatuses.Length == 0
+    ? "nothing, because this status is final"
+    : string.Join(", ", allowedStatuses);
 
                         throw new BusinessRuleException(
                             $"Cannot change order status from {order.Status} to {request.Status}. Allowed: {allowedText}.");

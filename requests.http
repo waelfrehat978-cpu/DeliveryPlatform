@@ -1,28 +1,47 @@
+
 # DeliveryPlatform - API Requests
 
 @baseUrl = https://localhost:7195
 
 ##################################################
+# TEST DATA
+##################################################
+
+@adminEmail = admin@example.com
+@adminPassword = PASTE_ADMIN_PASSWORD
+
+@partnerEmail = partner1@example.com
+@partnerPassword = PASTE_PARTNER_PASSWORD
+
+@customerPhone = PASTE_CUSTOMER_PHONE
+@customerOtp = PASTE_CUSTOMER_OTP
+
+@customerAPhone = PASTE_CUSTOMER_A_PHONE
+@customerBPhone = PASTE_CUSTOMER_B_PHONE
+
+@fakePhone = 0799999999
+@rateLimitPhone = PASTE_TEST_PHONE
+@wrongOtpCode = 111111
+@otpCode = PASTE_OTP_FROM_LOGS
+
+@customerBOrderId = 1199991
+@otherStoreProductId = PASTE_OTHER_STORE_PRODUCT_ID
+
+@auditProductId = 120002
+@auditOrderId = 1500002
+@auditCustomerId = 120004
+@auditStoreId = 254
+
+@day1AddressId = 175001
+@day1StoreId = 255
+@day1ProductId = 160003
+
+##################################################
 # DAY 1 - LOGIN FLOWS
 ##################################################
 
-# Test variables
-@adminEmail = admin@example.com
-@adminPassword = PASTE_ADMIN_PASSWORD
-@partnerEmail = partner1@example.com
-@partnerPassword = PASTE_PARTNER_PASSWORD
-@customerPhone = PASTE_CUSTOMER_PHONE
-@customerOtp = PASTE_CUSTOMER_OTP
-@customerSignupToken = PASTE_CUSTOMER_SIGNUP_TOKEN
-@refreshToken = PASTE_REFRESH_TOKEN
-@accessToken = PASTE_ACCESS_TOKEN
-
-
-##################################################
-# 1 - ADMIN LOGIN
-##################################################
-
 ### [1.1] Admin Staff Login
+# @name adminLogin
 POST {{baseUrl}}/api/v1/auth/staff-login
 Content-Type: application/json
 
@@ -31,12 +50,8 @@ Content-Type: application/json
   "password": "{{adminPassword}}"
 }
 
-
-##################################################
-# 2 - PARTNER LOGIN
-##################################################
-
 ### [2.1] Partner Staff Login
+# @name partnerLogin
 POST {{baseUrl}}/api/v1/auth/staff-login
 Content-Type: application/json
 
@@ -45,12 +60,8 @@ Content-Type: application/json
   "password": "{{partnerPassword}}"
 }
 
-
-##################################################
-# 3 - CUSTOMER OTP LOGIN
-##################################################
-
-### [3.1] Request OTP
+### [3.1] Request Customer OTP
+# @name customerOtpRequest
 POST {{baseUrl}}/api/v1/auth/request-otp
 Content-Type: application/json
 
@@ -58,7 +69,8 @@ Content-Type: application/json
   "phoneNumber": "{{customerPhone}}"
 }
 
-### [3.2] Verify OTP
+### [3.2] Verify Customer OTP
+# @name customerLogin
 POST {{baseUrl}}/api/v1/auth/verify-otp
 Content-Type: application/json
 
@@ -67,92 +79,88 @@ Content-Type: application/json
   "code": "{{customerOtp}}"
 }
 
-
 ##################################################
-# 4 - REFRESH TOKENS
+# DAY 1 - CUSTOMER STORY
 ##################################################
 
-### [4.1] Refresh Access Token
-POST {{baseUrl}}/api/v1/auth/refresh
+### [4.1] Add Customer Address
+# @name createAddress
+POST {{baseUrl}}/api/v1/addresses
+Authorization: Bearer {{customerLogin.response.body.$.accessToken}}
 Content-Type: application/json
 
 {
-  "refreshToken": "{{refreshToken}}"
+  "customerId": 120004,
+  "label": "Home",
+  "street": "Test Street",
+  "city": "Amman",
+  "latitude": 31.9539,
+  "longitude": 35.9106,
+  "isDefault": true
 }
 
+### [4.2] Search Products
+# @name searchProducts
+GET {{baseUrl}}/api/v1/products
+Authorization: Bearer {{customerLogin.response.body.$.accessToken}}
 
-##################################################
-# 5 - GET CURRENT USER
-##################################################
-
-### [5.1] Get Current User
-GET {{baseUrl}}/api/v1/auth/me
-Authorization: Bearer {{accessToken}}
-
-
-##################################################
-# 6 - LOGOUT
-##################################################
-
-### [6.1] Logout
-POST {{baseUrl}}/api/v1/auth/logout
-Authorization: Bearer {{accessToken}}
+### [4.3] Create Order
+# @name createOrder
+POST {{baseUrl}}/api/v1/orders
+Authorization: Bearer {{customerLogin.response.body.$.accessToken}}
 Content-Type: application/json
 
 {
-  "refreshToken": "{{refreshToken}}"
+  "storeId": {{day1StoreId}},
+  "addressId": {{day1AddressId}},
+  "items": [
+    {
+      "productId": {{day1ProductId}},
+      "quantity": 1
+    }
+  ],
+  "paymentMethod": 0
 }
 
+### [4.4] Read Created Order
+# @name readCreatedOrder
+GET {{baseUrl}}/api/v1/orders/{{createOrder.response.body.$.id}}
+Authorization: Bearer {{customerLogin.response.body.$.accessToken}}
+
+### [4.5] Update Order Status
+# @name updateOrderStatus
+PUT {{baseUrl}}/api/v1/orders/{{createOrder.response.body.$.id}}/status
+Authorization: Bearer {{partnerLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "status": 1,
+  "note": "Order accepted"
+}
+
+### [4.6] Read Order History
+# @name readOrderHistory
+GET {{baseUrl}}/api/v1/orders/{{createOrder.response.body.$.id}}/history?page=1&pageSize=10
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
 ##################################################
 # DAY 2 - PART 6 - ATTACK TESTS
 ##################################################
 
-# Test variables
-@customerAToken = PASTE_CUSTOMER_A_TOKEN
-@partnerToken = PASTE_PARTNER_TOKEN
-@customerBOrderId = 1199991
-@otherStoreProductId = PASTE_OTHER_STORE_PRODUCT_ID
-@customerAPhone = PASTE_CUSTOMER_A_PHONE
-@customerBPhone = PASTE_CUSTOMER_B_PHONE
-@fakePhone = 0799999999
-@rateLimitPhone = PASTE_TEST_PHONE
-@wrongOtpCode = 111111
-@otpCode = PASTE_OTP_FROM_LOGS
-@refreshTokenToReuse = PASTE_FRESH_REFRESH_TOKEN
-@tamperedToken = PASTE_TAMPERED_TOKEN
-@expiredAccessToken = PASTE_EXPIRED_ACCESS_TOKEN
-
-##################################################
-# ATTACK 1 - NO TOKEN
-##################################################
-
 ### [1] No Token
 GET {{baseUrl}}/api/v1/orders/900001
-
-##################################################
-# ATTACK 2 - GARBAGE TOKEN
-##################################################
 
 ### [2] Garbage Token
 GET {{baseUrl}}/api/v1/orders/900001
 Authorization: Bearer abc.def.ghi
 
-##################################################
-# ATTACK 3 - CUSTOMER A ACCESS CUSTOMER B ORDER
-##################################################
-
-### [3.1] Customer A accesses Customer B order
+### [3.1] Customer A Accesses Customer B Order
 GET {{baseUrl}}/api/v1/orders/{{customerBOrderId}}
-Authorization: Bearer {{customerAToken}}
+Authorization: Bearer {{customerLogin.response.body.$.accessToken}}
 
-##################################################
-# ATTACK 4 - PARTNER ACCESS ANOTHER STORE PRODUCT
-##################################################
-
-### [4.1] Partner updates another store product
+### [4.1] Partner Updates Another Store Product
 PUT {{baseUrl}}/api/v1/products/{{otherStoreProductId}}
-Authorization: Bearer {{partnerToken}}
+Authorization: Bearer {{partnerLogin.response.body.$.accessToken}}
 Content-Type: application/json
 
 {
@@ -163,63 +171,44 @@ Content-Type: application/json
   "categoryId": 1
 }
 
-##################################################
-# ATTACK 5 - TAMPERED JWT
-##################################################
-
 ### [5.1] Tampered JWT
 GET {{baseUrl}}/api/v1/orders/900001
-Authorization: Bearer {{tamperedToken}}
+Authorization: Bearer abc.def.ghi
 
-##################################################
-# ATTACK 6 - ALG NONE
-##################################################
-
-### [6.1] Unsigned token
+### [6.1] Unsigned Token
 GET {{baseUrl}}/api/v1/orders/900001
-Authorization: Bearer PASTE_UNSIGNED_TEST_TOKEN
-
-##################################################
-# ATTACK 7 - EXPIRED ACCESS TOKEN
-##################################################
+Authorization: Bearer eyJhbGciOiJub25lIn0.eyJzdWIiOiIxIn0.
 
 ### [7.1] Expired Access Token
 GET {{baseUrl}}/api/v1/products
-Authorization: Bearer {{expiredAccessToken}}
+Authorization: Bearer PASTE_EXPIRED_ACCESS_TOKEN
 
-### [7.2] Refresh after expiration
+### [7.2] Refresh After Expiration
 POST {{baseUrl}}/api/v1/auth/refresh
 Content-Type: application/json
 
 {
-  "refreshToken": "{{refreshTokenToReuse}}"
+  "refreshToken": "{{customerLogin.response.body.$.refreshToken}}"
 }
 
-##################################################
-# ATTACK 8 - REUSE OLD REFRESH TOKEN
-##################################################
-
-### [8.1] First refresh
+### [8.1] First Refresh
+# @name firstRefresh
 POST {{baseUrl}}/api/v1/auth/refresh
 Content-Type: application/json
 
 {
-  "refreshToken": "{{refreshTokenToReuse}}"
+  "refreshToken": "{{partnerLogin.response.body.$.refreshToken}}"
 }
 
-### [8.2] Reuse old refresh token
+### [8.2] Reuse Old Refresh Token
 POST {{baseUrl}}/api/v1/auth/refresh
 Content-Type: application/json
 
 {
-  "refreshToken": "{{refreshTokenToReuse}}"
+  "refreshToken": "{{partnerLogin.response.body.$.refreshToken}}"
 }
 
-##################################################
-# ATTACK 9 - OTP WRONG ATTEMPTS
-##################################################
-
-### [9.1] Wrong OTP attempt 1
+### [9.1] Wrong OTP Attempt 1
 POST {{baseUrl}}/api/v1/auth/verify-otp
 Content-Type: application/json
 
@@ -228,7 +217,7 @@ Content-Type: application/json
   "code": "{{wrongOtpCode}}"
 }
 
-### [9.2] Wrong OTP attempt 2
+### [9.2] Wrong OTP Attempt 2
 POST {{baseUrl}}/api/v1/auth/verify-otp
 Content-Type: application/json
 
@@ -237,7 +226,7 @@ Content-Type: application/json
   "code": "{{wrongOtpCode}}"
 }
 
-### [9.3] Wrong OTP attempt 3
+### [9.3] Wrong OTP Attempt 3
 POST {{baseUrl}}/api/v1/auth/verify-otp
 Content-Type: application/json
 
@@ -246,7 +235,7 @@ Content-Type: application/json
   "code": "{{wrongOtpCode}}"
 }
 
-### [9.4] Wrong OTP attempt 4
+### [9.4] Wrong OTP Attempt 4
 POST {{baseUrl}}/api/v1/auth/verify-otp
 Content-Type: application/json
 
@@ -255,7 +244,7 @@ Content-Type: application/json
   "code": "{{wrongOtpCode}}"
 }
 
-### [9.5] Wrong OTP attempt 5
+### [9.5] Wrong OTP Attempt 5
 POST {{baseUrl}}/api/v1/auth/verify-otp
 Content-Type: application/json
 
@@ -264,7 +253,7 @@ Content-Type: application/json
   "code": "{{wrongOtpCode}}"
 }
 
-### [9.6] Correct OTP after failed attempts
+### [9.6] Correct OTP After Failed Attempts
 POST {{baseUrl}}/api/v1/auth/verify-otp
 Content-Type: application/json
 
@@ -273,11 +262,7 @@ Content-Type: application/json
   "code": "{{otpCode}}"
 }
 
-##################################################
-# ATTACK 10 - USE OTP TWICE
-##################################################
-
-### [10.1] First OTP verification
+### [10.1] First OTP Verification
 POST {{baseUrl}}/api/v1/auth/verify-otp
 Content-Type: application/json
 
@@ -286,7 +271,7 @@ Content-Type: application/json
   "code": "{{otpCode}}"
 }
 
-### [10.2] Second OTP verification
+### [10.2] Second OTP Verification
 POST {{baseUrl}}/api/v1/auth/verify-otp
 Content-Type: application/json
 
@@ -295,11 +280,7 @@ Content-Type: application/json
   "code": "{{otpCode}}"
 }
 
-##################################################
-# ATTACK 11 - OTP RATE LIMIT
-##################################################
-
-### [11.1] OTP request 1
+### [11.1] OTP Request 1
 POST {{baseUrl}}/api/v1/auth/request-otp
 Content-Type: application/json
 
@@ -307,7 +288,7 @@ Content-Type: application/json
   "phoneNumber": "{{rateLimitPhone}}"
 }
 
-### [11.2] OTP request 2
+### [11.2] OTP Request 2
 POST {{baseUrl}}/api/v1/auth/request-otp
 Content-Type: application/json
 
@@ -315,17 +296,13 @@ Content-Type: application/json
   "phoneNumber": "{{rateLimitPhone}}"
 }
 
-### [11.3] OTP request 3
+### [11.3] OTP Request 3
 POST {{baseUrl}}/api/v1/auth/request-otp
 Content-Type: application/json
 
 {
   "phoneNumber": "{{rateLimitPhone}}"
 }
-
-##################################################
-# ATTACK 12 - ACCOUNT ENUMERATION
-##################################################
 
 ### [12.1] Existing Customer
 POST {{baseUrl}}/api/v1/auth/request-otp
@@ -343,7 +320,7 @@ Content-Type: application/json
   "phoneNumber": "{{fakePhone}}"
 }
 
-### [12.3] Existing Staff with wrong password
+### [12.3] Existing Staff With Wrong Password
 POST {{baseUrl}}/api/v1/auth/staff-login
 Content-Type: application/json
 
@@ -365,20 +342,9 @@ Content-Type: application/json
 # DAY 2.5 - PART 6 - AUDIT HISTORY
 ##################################################
 
-# Test variables
-@adminAuditToken = PASTE_ADMIN_ACCESS_TOKEN
-@auditProductId = 120002
-@auditOrderId = PASTE_ORDER_ID
-@auditCustomerId = PASTE_CUSTOMER_ID
-@auditStoreId = PASTE_STORE_ID
-
-##################################################
-# 1 - UPDATE PRODUCT PRICE (ADMIN)
-##################################################
-
 ### [1.1] Update Product Price
 PUT {{baseUrl}}/api/v1/products/{{auditProductId}}
-Authorization: Bearer {{adminAuditToken}}
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 Content-Type: application/json
 
 {
@@ -389,62 +355,54 @@ Content-Type: application/json
   "categoryId": 135
 }
 
-##################################################
-# 2 - READ PRODUCT AUDIT HISTORY
-##################################################
-
-### [2.1] Admin reads product history
+### [2.1] Admin Reads Product History
 GET {{baseUrl}}/api/v1/products/{{auditProductId}}/history?page=1&pageSize=10
-Authorization: Bearer {{adminAuditToken}}
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
-### [2.2] Partner reads own product history
+### [2.2] Partner Reads Own Product History
 GET {{baseUrl}}/api/v1/products/{{auditProductId}}/history?page=1&pageSize=10
-Authorization: Bearer {{partnerToken}}
+Authorization: Bearer {{partnerLogin.response.body.$.accessToken}}
 
-### [2.3] Customer attempts to read product history (Expected: 403)
+### [2.3] Customer Attempts Product History (Expected: 403)
 GET {{baseUrl}}/api/v1/products/{{auditProductId}}/history?page=1&pageSize=10
-Authorization: Bearer {{customerAToken}}
+Authorization: Bearer {{customerLogin.response.body.$.accessToken}}
 
-### [2.4] Partner attempts another store product history (Expected: 403)
+### [2.4] Partner Attempts Another Store Product History (Expected: 403)
 GET {{baseUrl}}/api/v1/products/{{otherStoreProductId}}/history?page=1&pageSize=10
-Authorization: Bearer {{partnerToken}}
+Authorization: Bearer {{partnerLogin.response.body.$.accessToken}}
 
-##################################################
-# 3 - READ ORDER AUDIT HISTORY
-##################################################
-
-### [3.1] Admin reads order history
+### [3.1] Admin Reads Order History
 GET {{baseUrl}}/api/v1/orders/{{auditOrderId}}/history?page=1&pageSize=10
-Authorization: Bearer {{adminAuditToken}}
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
-### [3.2] Partner attempts order history (Expected: 403)
+### [3.2] Partner Attempts Order History (Expected: 403)
 GET {{baseUrl}}/api/v1/orders/{{auditOrderId}}/history?page=1&pageSize=10
-Authorization: Bearer {{partnerToken}}
+Authorization: Bearer {{partnerLogin.response.body.$.accessToken}}
 
-### [3.3] Customer attempts order history (Expected: 403)
+### [3.3] Customer Attempts Order History (Expected: 403)
 GET {{baseUrl}}/api/v1/orders/{{auditOrderId}}/history?page=1&pageSize=10
-Authorization: Bearer {{customerAToken}}
+Authorization: Bearer {{customerLogin.response.body.$.accessToken}}
 
-##################################################
-# 4 - READ CUSTOMER AUDIT HISTORY
-##################################################
-
-### [4.1] Admin reads customer history
+### [4.1] Admin Reads Customer History
 GET {{baseUrl}}/api/v1/customers/{{auditCustomerId}}/history?page=1&pageSize=10
-Authorization: Bearer {{adminAuditToken}}
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
 
-### [4.2] Partner attempts customer history (Expected: 403)
+### [4.2] Partner Attempts Customer History (Expected: 403)
 GET {{baseUrl}}/api/v1/customers/{{auditCustomerId}}/history?page=1&pageSize=10
-Authorization: Bearer {{partnerToken}}
+Authorization: Bearer {{partnerLogin.response.body.$.accessToken}}
+
+### [5.1] Admin Reads Store History
+GET {{baseUrl}}/api/v1/stores/{{auditStoreId}}/history?page=1&pageSize=10
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+### [5.2] Partner Attempts Store History (Expected: 403)
+GET {{baseUrl}}/api/v1/stores/{{auditStoreId}}/history?page=1&pageSize=10
+Authorization: Bearer {{partnerLogin.response.body.$.accessToken}}
 
 ##################################################
-# 5 - READ STORE AUDIT HISTORY
+# DAY 1 - STORE DASHBOARD (MUST BE LAST)
 ##################################################
 
-### [5.1] Admin reads store history
-GET {{baseUrl}}/api/v1/stores/{{auditStoreId}}/history?page=1&pageSize=10
-Authorization: Bearer {{adminAuditToken}}
-
-### [5.2] Partner attempts store history (Expected: 403)
-GET {{baseUrl}}/api/v1/stores/{{auditStoreId}}/history?page=1&pageSize=10
-Authorization: Bearer {{partnerToken}}
+### [5.1] Partner Reads Store Dashboard
+GET {{baseUrl}}/api/v1/stores/{{day1StoreId}}/dashboard
+Authorization: Bearer {{partnerLogin.response.body.$.accessToken}}

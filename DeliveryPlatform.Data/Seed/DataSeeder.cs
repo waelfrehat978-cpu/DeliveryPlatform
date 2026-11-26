@@ -81,7 +81,22 @@ public class DataSeeder : IDataSeeder
         Console.WriteLine("Clearing old data...");
 
         _context.Database.SetCommandTimeout(TimeSpan.FromMinutes(10));
+        // Clear audit history before reseeding.
+        await _context.ProductAuditTrails
+            .IgnoreQueryFilters()
+            .ExecuteDeleteAsync(cancellationToken);
 
+        await _context.OrderAuditTrails
+            .IgnoreQueryFilters()
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _context.CustomerAuditTrails
+            .IgnoreQueryFilters()
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _context.StoreAuditTrails
+            .IgnoreQueryFilters()
+            .ExecuteDeleteAsync(cancellationToken);
         // Children before parents. ExecuteDelete runs a real DELETE (it bypasses the interceptor).
         await _context.CartLineOptions.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);
         await _context.OrderLineOptions.IgnoreQueryFilters().ExecuteDeleteAsync(cancellationToken);

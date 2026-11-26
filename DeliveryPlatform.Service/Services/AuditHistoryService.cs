@@ -1,6 +1,6 @@
 ﻿
-using System.Text.Json;
 using DeliveryPlatform.Data.Context;
+using DeliveryPlatform.Data.Entities;
 using DeliveryPlatform.Data.Enums;
 using DeliveryPlatform.Data.Interfaces;
 using DeliveryPlatform.Service.DTOs;
@@ -8,6 +8,7 @@ using DeliveryPlatform.Service.DTOs.AuditHistory;
 using DeliveryPlatform.Service.Exceptions;
 using DeliveryPlatform.Service.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace DeliveryPlatform.Service.Services
 {
@@ -38,9 +39,9 @@ namespace DeliveryPlatform.Service.Services
             }
 
             var query = _context.ProductAuditTrails
-                .Where(a => a.EntityName == "Product"
+                .Where(a => a.EntityName == nameof(Product)
                          && a.EntityId == productId.ToString())
-                .OrderByDescending(a => a.TimestampUtc);
+              .OrderByDescending(a => a.Id);
 
             return await BuildHistoryResultAsync(query, page, pageSize);
         }
@@ -51,9 +52,9 @@ namespace DeliveryPlatform.Service.Services
             EnsureAdminOnly();
 
             var query = _context.OrderAuditTrails
-                .Where(a => a.EntityName == "Order"
+                .Where(a => a.EntityName == nameof(Order)
                          && a.EntityId == orderId.ToString())
-                .OrderByDescending(a => a.TimestampUtc);
+              .OrderByDescending(a => a.Id);
 
             return await BuildHistoryResultAsync(query, page, pageSize);
         }
@@ -64,9 +65,9 @@ namespace DeliveryPlatform.Service.Services
             EnsureAdminOnly();
 
             var query = _context.CustomerAuditTrails
-                .Where(a => a.EntityName == "Customer"
+                .Where(a => a.EntityName == nameof(Customer)
                          && a.EntityId == customerId.ToString())
-                .OrderByDescending(a => a.TimestampUtc);
+              .OrderByDescending(a => a.Id);
 
             return await BuildHistoryResultAsync(query, page, pageSize);
         }
@@ -77,10 +78,9 @@ namespace DeliveryPlatform.Service.Services
             EnsureAdminOnly();
 
             var query = _context.StoreAuditTrails
-                .Where(a => a.EntityName == "Store"
+                .Where(a => a.EntityName == nameof(Store)
                          && a.EntityId == storeId.ToString())
-                .OrderByDescending(a => a.TimestampUtc);
-
+              .OrderByDescending(a => a.Id);
             return await BuildHistoryResultAsync(query, page, pageSize);
         }
 
