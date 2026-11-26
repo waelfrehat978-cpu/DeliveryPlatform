@@ -3,6 +3,7 @@ using DeliveryPlatform.Service.DTOs.Customers;
 using DeliveryPlatform.Service.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 
 namespace DeliveryPlatform.Api.Controllers
 {
@@ -11,24 +12,14 @@ namespace DeliveryPlatform.Api.Controllers
     public class CustomersController : ControllerBase
     {
         private readonly ICustomerService _customerService;
+        private readonly IAuditHistoryService _auditHistoryService;
 
-        public CustomersController(ICustomerService customerService)
+        public CustomersController(
+            ICustomerService customerService,
+            IAuditHistoryService auditHistoryService)
         {
             _customerService = customerService;
-        }
-
-        [Authorize(Roles = "Admin")]
-        [HttpPost]
-        public async Task<IActionResult> CreateCustomer(
-            CreateCustomerDto customerDto)
-        {
-            var customer = await _customerService
-                .CreateCustomerAsync(customerDto);
-
-            return CreatedAtAction(
-                nameof(GetCustomerById),
-                new { id = customer.Id },
-                customer);
+            _auditHistoryService = auditHistoryService;
         }
 
         [Authorize(Roles = "Customer,Admin")]
@@ -51,6 +42,24 @@ namespace DeliveryPlatform.Api.Controllers
                 .UpdateCustomerAsync(id, customerDto);
 
             return Ok(customer);
+        }
+
+        [Authorize(Roles = "Admin")]
+        [HttpGet("{id:int}/history")]
+        /*
+         istory
+هذا الجزء يحدد أن الطلب خاص بتاريخ (History).
+يعني نريد جلب سجل التغييرات أو الأحداث المرتبطة بالطلب
+         */
+        public async Task<IActionResult> GetCustomerHistory(
+            int id,
+            [FromQuery, Range(1, int.MaxValue)] int page = 1,
+            [FromQuery, Range(1, 100)] int pageSize = 10)
+        {
+            var history = await _auditHistoryService
+                .GetCustomerHistoryAsync(id, page, pageSize);
+
+            return Ok(history);
         }
     }
 }

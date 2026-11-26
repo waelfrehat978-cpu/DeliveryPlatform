@@ -21,9 +21,7 @@ namespace DeliveryPlatform.Data.Configurations
                 .IsRequired()
                 .HasMaxLength(100);
 
-            entity.Property(c => c.PhoneNumber)
-                .IsRequired()
-                .HasMaxLength(20);
+       
 
             entity.Property(c => c.Email)
                 .IsRequired()

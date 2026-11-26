@@ -1,8 +1,9 @@
 ﻿using DeliveryPlatform.Service.DTOs.Stores;
 using DeliveryPlatform.Service.Interfaces;
+using DeliveryPlatform.Service.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
-using Microsoft.AspNetCore.Authorization;
 namespace DeliveryPlatform.Api.Controllers
 {
 
@@ -10,11 +11,15 @@ namespace DeliveryPlatform.Api.Controllers
     [Route("api/v1/stores")]
     public class StoresController : ControllerBase
     {
+        private readonly IAuditHistoryService _auditHistoryService;
         private readonly IStoreService _storeService;
 
-        public StoresController(IStoreService storeService)
+        public StoresController(
+       IStoreService storeService,
+       IAuditHistoryService auditHistoryService)
         {
             _storeService = storeService;
+            _auditHistoryService = auditHistoryService;
         }
 
         [HttpGet]
@@ -38,7 +43,7 @@ namespace DeliveryPlatform.Api.Controllers
 
             return Ok(store);
         }
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Partner,Admin")]
         [HttpPost]
         public async Task<IActionResult> CreateStore(
     [FromBody] CreateStoreDto request)
@@ -49,6 +54,36 @@ namespace DeliveryPlatform.Api.Controllers
                 nameof(GetStoreById),
                 new { id = store.Id },
                 store);
+        }
+        [Authorize(Roles = "Partner,Admin")]
+        [HttpPut("{id:int}/name")]
+        public async Task<IActionResult> UpdateStoreName(
+    int id,
+    [FromBody] UpdateStoreNameDto request)
+        {
+            await _storeService.UpdateStoreNameAsync(id, request.Name);
+
+            return NoContent();
+        }
+        [Authorize(Roles = "Partner,Admin")]
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> DeleteStore(int id)
+        {
+            await _storeService.DeleteStoreAsync(id);
+
+            return NoContent();
+        }
+        [Authorize(Roles = "Partner,Admin")]
+        [HttpGet("{id:int}/history")]
+        public async Task<IActionResult> GetStoreHistory(
+    int id,
+    [FromQuery, Range(1, int.MaxValue)] int page = 1,
+    [FromQuery, Range(1, 100)] int pageSize = 10)
+        {
+            var history = await _auditHistoryService
+                .GetStoreHistoryAsync(id, page, pageSize);
+
+            return Ok(history);
         }
     }
 }

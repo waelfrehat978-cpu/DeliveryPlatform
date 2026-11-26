@@ -1,50 +1,42 @@
-﻿using System.Security.Cryptography;
-using System.Text;
-using DeliveryPlatform.Data.Context;
+﻿using DeliveryPlatform.Data.Context;
 using DeliveryPlatform.Data.Entities;
 using DeliveryPlatform.Service.DTOs.Auth;
 using DeliveryPlatform.Service.Exceptions;
 using DeliveryPlatform.Service.Interfaces;
+using DeliveryPlatform.Service.Security;
 using Microsoft.EntityFrameworkCore;
+using DeliveryPlatform.Service.Options;
+using Microsoft.Extensions.Options;
 
 namespace DeliveryPlatform.Service.Services;
 
 public class RefreshTokenService : IRefreshTokenService
 {
+    private readonly IClockService _clock;
+    private readonly int _refreshTokenDays;
     private readonly DeliveryPlatformDbContext _context;
     private readonly IJwtTokenService _jwtTokenService;
-
     public RefreshTokenService(
-        DeliveryPlatformDbContext context,
-        IJwtTokenService jwtTokenService)
+      DeliveryPlatformDbContext context,
+      IJwtTokenService jwtTokenService,
+      IOptions<JwtOptions> jwtOptions,
+      IClockService clock)
     {
         _context = context;
         _jwtTokenService = jwtTokenService;
-    }
-
-    public string GenerateRefreshToken()
-    {
-        var randomBytes = RandomNumberGenerator.GetBytes(32);
-        return Convert.ToBase64String(randomBytes);
-    }
-
-    public string HashRefreshToken(string token)
-    {
-        var tokenBytes = Encoding.UTF8.GetBytes(token);
-        var hashBytes = SHA256.HashData(tokenBytes);
-
-        return Convert.ToBase64String(hashBytes);
+        _refreshTokenDays = jwtOptions.Value.RefreshTokenDays;
+        _clock = clock;
     }
 
     public async Task<TokenResponseDto> IssueTokenPairAsync(User user)
     {
-        var refreshToken = GenerateRefreshToken();
+        var refreshToken = SecureToken.Create();
 
         var refreshTokenEntity = new RefreshToken
         {
-            TokenHash = HashRefreshToken(refreshToken),
+            TokenHash = SecureToken.Hash(refreshToken),
             UserId = user.Id,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(7)
+            ExpiresAtUtc = _clock.UtcNow.AddDays(_refreshTokenDays)
         };
 
         _context.RefreshTokens.Add(refreshTokenEntity);
@@ -60,7 +52,7 @@ public class RefreshTokenService : IRefreshTokenService
 
     public async Task<TokenResponseDto> RefreshAsync(string refreshToken)
     {
-        var tokenHash = HashRefreshToken(refreshToken);
+        var tokenHash = SecureToken.Hash(refreshToken);
 
         var storedToken = await _context.RefreshTokens
             .Include(rt => rt.User)
@@ -69,7 +61,7 @@ public class RefreshTokenService : IRefreshTokenService
         if (storedToken == null)
             throw new UnauthorizedException("Invalid refresh token.");
 
-        var now = DateTime.UtcNow;
+        var now = _clock.UtcNow;
 
         if (storedToken.RevokedAtUtc.HasValue)
         {
@@ -91,13 +83,13 @@ public class RefreshTokenService : IRefreshTokenService
         await using var transaction =
             await _context.Database.BeginTransactionAsync();
 
-        var newRefreshToken = GenerateRefreshToken();
+        var newRefreshToken = SecureToken.Create();
 
         var newTokenEntity = new RefreshToken
         {
-            TokenHash = HashRefreshToken(newRefreshToken),
+            TokenHash = SecureToken.Hash(newRefreshToken),
             UserId = storedToken.UserId,
-            ExpiresAtUtc = now.AddDays(7)
+            ExpiresAtUtc = now.AddDays(_refreshTokenDays)
         };
 
         _context.RefreshTokens.Add(newTokenEntity);
@@ -120,8 +112,7 @@ public class RefreshTokenService : IRefreshTokenService
 
     public async Task RevokeAsync(int userId, string refreshToken)
     {
-        var tokenHash = HashRefreshToken(refreshToken);
-
+        var tokenHash = SecureToken.Hash(refreshToken);
         var storedToken = await _context.RefreshTokens
             .FirstOrDefaultAsync(rt =>
                 rt.TokenHash == tokenHash &&
@@ -130,7 +121,7 @@ public class RefreshTokenService : IRefreshTokenService
         if (storedToken == null || storedToken.RevokedAtUtc.HasValue)
             return;
 
-        storedToken.RevokedAtUtc = DateTime.UtcNow;
+        storedToken.RevokedAtUtc = _clock.UtcNow;
 
         await _context.SaveChangesAsync();
     }

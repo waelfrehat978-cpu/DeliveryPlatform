@@ -4,48 +4,24 @@ using DeliveryPlatform.Data.Enums;
 using DeliveryPlatform.Service.Exceptions;
 using DeliveryPlatform.Service.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using DeliveryPlatform.Service.DTOs.Users;
 namespace DeliveryPlatform.Service.Services;
 
 public class UserService : IUserService
 {
     private readonly DeliveryPlatformDbContext _context;
-    private readonly PasswordService _passwordService;
+    private readonly IPasswordHasher<User> _passwordHasher;
 
     public UserService(
-        DeliveryPlatformDbContext context,
-        PasswordService passwordService)
+      DeliveryPlatformDbContext context,
+      IPasswordHasher<User> passwordHasher)
     {
         _context = context;
-        _passwordService = passwordService;
+        _passwordHasher = passwordHasher;
     }
 
-    public async Task<User> CreateStaffUserAsync(
-        string email,
-        string password,
-        int? storeId = null)
-    {
-        var role = storeId.HasValue
-            ? UserRole.Partner
-            : UserRole.Admin;
-
-        var user = new User
-        {
-            Email = email,
-            Role = role,
-            StoreId = storeId
-        };
-
-        user.PasswordHash = _passwordService.HashPassword(
-            user,
-            password);
-
-        _context.Users.Add(user);
-
-        await _context.SaveChangesAsync();
-
-        return user;
-    }
+ 
 
     public async Task<User> LoginStaffAsync(
         string email,
@@ -60,8 +36,12 @@ public class UserService : IUserService
         {
             throw new UnauthorizedException("Invalid credentials.");
         }
+        var result = _passwordHasher.VerifyHashedPassword(
+            user,
+            user.PasswordHash!,
+            password);
 
-        if (!_passwordService.VerifyPassword(user, password))
+        if (result == PasswordVerificationResult.Failed)
         {
             throw new UnauthorizedException("Invalid credentials.");
         }
@@ -75,7 +55,7 @@ public class UserService : IUserService
             .AnyAsync(s => s.Id == request.StoreId);
 
         if (!storeExists)
-            throw new KeyNotFoundException("Store not found.");
+            throw new NotFoundException("Store not found.");
         var partnerExists = await _context.Users
     .AnyAsync(u => u.StoreId == request.StoreId
                 && u.Role == UserRole.Partner);
@@ -97,8 +77,7 @@ public class UserService : IUserService
             Role = UserRole.Partner,
             StoreId = request.StoreId
         };
-
-        user.PasswordHash = _passwordService.HashPassword(
+        user.PasswordHash = _passwordHasher.HashPassword(
             user,
             request.Password);
 

@@ -1,32 +1,35 @@
 ﻿
-using System.ComponentModel.DataAnnotations;
-using System.Security.Cryptography;
 using DeliveryPlatform.Data.Context;
 using DeliveryPlatform.Data.Entities;
 using DeliveryPlatform.Data.Enums;
 using DeliveryPlatform.Service.Exceptions;
 using DeliveryPlatform.Service.Interfaces;
 using DeliveryPlatform.Service.Options;
+using DeliveryPlatform.Service.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
 using ValidationException =
     DeliveryPlatform.Service.Exceptions.ValidationException;
 namespace DeliveryPlatform.Service.Services;
 
 public class OtpService : IOtpService
 {
+    private readonly IClockService _clock;
     private readonly DeliveryPlatformDbContext _context;
     private readonly ISmsSender _smsSender;
     private readonly OtpOptions _otpOptions;
 
     public OtpService(
-        DeliveryPlatformDbContext context,
-        ISmsSender smsSender,
-        IOptions<OtpOptions> otpOptions)
+     DeliveryPlatformDbContext context,
+     ISmsSender smsSender,
+     IOptions<OtpOptions> otpOptions,
+     IClockService clock)
     {
         _context = context;
         _smsSender = smsSender;
         _otpOptions = otpOptions.Value;
+        _clock = clock;
     }
 
     // 1. Request OTP
@@ -38,9 +41,8 @@ public class OtpService : IOtpService
                 "PhoneNumber",
                 "Phone number must contain 10 to 15 digits.");
         }
+        var now = _clock.UtcNow;
 
-        var now = DateTime.UtcNow;
-         
         // Check the waiting period.
         var hasRecentRequest = await _context.OtpCodes
             .AnyAsync(o =>
@@ -92,9 +94,9 @@ public class OtpService : IOtpService
     }
 
     // 2. Verify OTP
-    public async Task<User?> VerifyCodeAsync(
-        string phoneNumber,
-        string code)
+    public async Task<(User? User, string? SignupToken)> VerifyCodeAsync(
+    string phoneNumber,
+    string code)
     {
         var otp = await _context.OtpCodes
             .Where(o => o.PhoneNumber == phoneNumber)
@@ -103,7 +105,7 @@ public class OtpService : IOtpService
 
         if (otp == null ||
             otp.IsUsed ||
-            otp.ExpiresAtUtc <= DateTime.UtcNow ||
+              otp.ExpiresAtUtc <= _clock.UtcNow ||
             otp.WrongAttempts >= _otpOptions.MaxWrongTries)
         {
             throw new UnauthorizedException(
@@ -124,29 +126,37 @@ public class OtpService : IOtpService
         }
 
         otp.IsUsed = true;
-        otp.VerifiedAtUtc = DateTime.UtcNow;
+        otp.VerifiedAtUtc = _clock.UtcNow;
 
         var user = await _context.Users
             .FirstOrDefaultAsync(u =>
                 u.PhoneNumber == phoneNumber);
+        string? signupToken = null;
+
+        if (user == null)
+        {
+            signupToken = SecureToken.Create();
+
+            otp.SignupTokenHash = SecureToken.Hash(signupToken);
+        }
 
         await _context.SaveChangesAsync();
 
-        return user;
+        return (user, signupToken);
     }
 
     // 3. Complete Customer Signup
+
     public async Task<User> CompleteSignupAsync(
-        string phoneNumber,
+        string signupToken,
         string firstName,
         string lastName,
         string email)
     {
-        if (!IsValidPhoneNumber(phoneNumber))
+        if (string.IsNullOrWhiteSpace(signupToken))
         {
-            throw new ValidationException(
-                "PhoneNumber",
-                "Phone number must contain 10 to 15 digits.");
+            throw new UnauthorizedException(
+                "Invalid signup token.");
         }
 
         firstName = firstName?.Trim() ?? string.Empty;
@@ -168,6 +178,7 @@ public class OtpService : IOtpService
                 "LastName",
                 "Last name is required and must not exceed 100 characters.");
         }
+
         if (string.IsNullOrWhiteSpace(email) ||
             email.Length > 254 ||
             !System.Net.Mail.MailAddress.TryCreate(email, out _))
@@ -177,28 +188,31 @@ public class OtpService : IOtpService
                 "A valid email address is required.");
         }
 
+        var tokenHash = SecureToken.Hash(signupToken);
+        var now = _clock.UtcNow;
+
         await using var transaction =
             await _context.Database.BeginTransactionAsync();
 
-        // Find the latest successfully verified OTP.
         var otp = await _context.OtpCodes
-            .Where(o =>
-                o.PhoneNumber == phoneNumber &&
-                o.VerifiedAtUtc != null)
-            .OrderByDescending(o => o.CreatedAtUtc)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(o =>
+                o.SignupTokenHash == tokenHash &&
+                o.VerifiedAtUtc != null &&
+                o.IsUsed &&
+                !o.IsSignupCompleted &&
+                o.ExpiresAtUtc > now &&
+                o.VerifiedAtUtc >= now.AddMinutes(
+                    -_otpOptions.ExpiryMinutes));
 
-        if (otp == null ||
-            !otp.IsUsed ||
-            otp.IsSignupCompleted ||
-            otp.VerifiedAtUtc < DateTime.UtcNow.AddMinutes(
-                -_otpOptions.ExpiryMinutes))
+        if (otp == null)
         {
             throw new UnauthorizedException(
-                "Phone verification is required.");
+                "Invalid or expired signup token.");
         }
 
-        // Prevent creating another account for the same phone.
+        // Get phone number from the verified OTP record.
+        var phoneNumber = otp.PhoneNumber;
+
         var phoneAlreadyRegistered = await _context.Users
             .AnyAsync(u => u.PhoneNumber == phoneNumber);
 
@@ -208,7 +222,6 @@ public class OtpService : IOtpService
                 "This phone number is already registered.");
         }
 
-        // Prevent duplicate customer email.
         var emailAlreadyRegistered = await _context.Customers
             .AnyAsync(c => c.Email == email);
 
@@ -218,12 +231,10 @@ public class OtpService : IOtpService
                 "This email address is already registered.");
         }
 
-        // Create Customer.
         var customer = new Customer
         {
             FirstName = firstName,
             LastName = lastName,
-            PhoneNumber = phoneNumber,
             Email = email
         };
 
@@ -231,7 +242,6 @@ public class OtpService : IOtpService
 
         await _context.SaveChangesAsync();
 
-        // Create User linked to Customer.
         var user = new User
         {
             PhoneNumber = phoneNumber,
@@ -244,7 +254,6 @@ public class OtpService : IOtpService
 
         _context.Users.Add(user);
 
-        // Mark signup as completed.
         otp.IsSignupCompleted = true;
 
         await _context.SaveChangesAsync();
@@ -253,6 +262,7 @@ public class OtpService : IOtpService
 
         return user;
     }
+
 
     // Validate phone number.
     private static bool IsValidPhoneNumber(string phoneNumber)

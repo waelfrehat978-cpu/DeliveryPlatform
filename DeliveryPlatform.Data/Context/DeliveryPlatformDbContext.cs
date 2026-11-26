@@ -1,6 +1,7 @@
-using System.Reflection;
+using DeliveryPlatform.Data.Auditing;
 using DeliveryPlatform.Data.Entities;
 using Microsoft.EntityFrameworkCore;
+using System.Reflection;
 namespace DeliveryPlatform.Data.Context;
 
 public class DeliveryPlatformDbContext : DbContext
@@ -10,7 +11,13 @@ public class DeliveryPlatformDbContext : DbContext
         : base(options)
     {
     }
+    public DbSet<ProductAuditTrail> ProductAuditTrails { get; set; }
 
+    public DbSet<OrderAuditTrail> OrderAuditTrails { get; set; }
+
+    public DbSet<CustomerAuditTrail> CustomerAuditTrails { get; set; }
+
+    public DbSet<StoreAuditTrail> StoreAuditTrails { get; set; }
     public DbSet<Customer> Customers => Set<Customer>();
 
     public DbSet<Address> Addresses => Set<Address>();

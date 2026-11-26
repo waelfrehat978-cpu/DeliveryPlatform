@@ -31,6 +31,10 @@ public class OtpCodeConfiguration : IEntityTypeConfiguration<OtpCode>
             .HasDefaultValue(false);
         builder.Property(o => o.VerifiedAtUtc)
     .IsRequired(false);
+        // .IsRequired(false) يعني القيمه بتقبل null
+        builder.Property(o => o.SignupTokenHash)
+    .IsRequired(false)
+    .HasMaxLength(100);
 
         builder.Property(o => o.IsSignupCompleted)
             .IsRequired()

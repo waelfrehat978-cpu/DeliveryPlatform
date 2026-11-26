@@ -10,17 +10,19 @@ namespace DeliveryPlatform.Service.Services
 {
     public class ReportService : IReportService
     {
+        private readonly IClockService _clock;
         private readonly IResourceAuthorizationService _resourceAuthorization;
         private readonly DeliveryPlatformDbContext _context;
 
         public ReportService(
-         DeliveryPlatformDbContext context,
-         IResourceAuthorizationService resourceAuthorization)
+       DeliveryPlatformDbContext context,
+       IResourceAuthorizationService resourceAuthorization,
+       IClockService clock)
         {
             _context = context;
             _resourceAuthorization = resourceAuthorization;
+            _clock = clock;
         }
-
         public async Task<StoreDashboardDto> GetStoreDashboardAsync(
             int storeId)
         {
@@ -33,15 +35,19 @@ namespace DeliveryPlatform.Service.Services
             var amman = TimeZoneInfo.FindSystemTimeZoneById(
                 "Asia/Amman");
 
+            var nowUtc = _clock.UtcNow;//الوقت الحالي بتوقيت UTC
+
             var nowInAmman = TimeZoneInfo.ConvertTimeFromUtc(
-                DateTime.UtcNow, amman);
+                nowUtc,
+                amman);//الوقت الحالي بتوقيت عمّان
 
             var todayStartUtc = TimeZoneInfo.ConvertTimeToUtc(
-                nowInAmman.Date, amman);
+                nowInAmman.Date,
+                amman);//بداية اليوم الحالي بتوقيت UTC
 
-            var tomorrowStartUtc = todayStartUtc.AddDays(1);
+            var tomorrowStartUtc = todayStartUtc.AddDays(1);//بداية اليوم التالي بتوقيت UTC
 
-            var last30DaysStartUtc = DateTime.UtcNow.AddDays(-30);
+            var last30DaysStartUtc = nowUtc.AddDays(-30);//	الوقت قبل 30 يومًا
 
             // Base query for store orders
             var storeOrdersQuery = _context.Orders

@@ -1,21 +1,27 @@
 ﻿using DeliveryPlatform.Service.DTOs.Products;
 using DeliveryPlatform.Service.Interfaces;
-using Microsoft.AspNetCore.Mvc;
+using DeliveryPlatform.Service.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 namespace DeliveryPlatform.Api.Controllers
 {
     [ApiController]
     [Route("api/v1/products")]
     public class ProductsController : ControllerBase
     {
+        private readonly IAuditHistoryService _auditHistoryService;
         private readonly IProductService _productService;
 
-        public ProductsController(IProductService productService)
+        public ProductsController(
+        IProductService productService,
+        IAuditHistoryService auditHistoryService)
         {
             _productService = productService;
+            _auditHistoryService = auditHistoryService;
         }
 
-     
+
         [HttpGet]
         public async Task<IActionResult> SearchProducts(
             [FromQuery] ProductSearchDto searchDto)
@@ -61,6 +67,26 @@ namespace DeliveryPlatform.Api.Controllers
                 request);
 
             return Ok(product);
+        }
+        [Authorize(Roles = "Partner,Admin")]
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> DeleteProduct(int id)
+        {
+            await _productService.DeleteProductAsync(id);
+
+            return NoContent();
+        }
+        [Authorize(Roles = "Partner,Admin")]
+        [HttpGet("{id:int}/history")]
+        public async Task<IActionResult> GetProductHistory(
+    int id,
+    [FromQuery, Range(1, int.MaxValue)] int page = 1,
+    [FromQuery, Range(1, 100)] int pageSize = 10)
+        {
+            var history = await _auditHistoryService
+                .GetProductHistoryAsync(id, page, pageSize);
+
+            return Ok(history);
         }
     }
 }

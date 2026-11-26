@@ -1,60 +1,26 @@
 ﻿
+using DeliveryPlatform.Data.Auditing;
 using DeliveryPlatform.Data.Context;
-using DeliveryPlatform.Data.Entities;
 using DeliveryPlatform.Service.DTOs.Customers;
-using DeliveryPlatform.Service.Interfaces;
 using DeliveryPlatform.Service.Exceptions;
+using DeliveryPlatform.Service.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace DeliveryPlatform.Service.Services
 {
     public class CustomerService : ICustomerService
     {
+        private readonly IAuditScope _auditScope;
         private readonly DeliveryPlatformDbContext _context;
         private readonly IResourceAuthorizationService _resourceAuthorization;
 
         public CustomerService(
             DeliveryPlatformDbContext context,
-            IResourceAuthorizationService resourceAuthorization)
+            IResourceAuthorizationService resourceAuthorization,IAuditScope auditScope)
         {
             _context = context;
             _resourceAuthorization = resourceAuthorization;
-        }
-
-        // Create Customer
-        public async Task<CustomerDto> CreateCustomerAsync(
-            CreateCustomerDto customerDto)
-        {
-            if (!string.IsNullOrWhiteSpace(customerDto.Email))
-            {
-                bool emailExists = await _context.Customers
-                    .AnyAsync(c => c.Email == customerDto.Email);
-
-                if (emailExists)
-                    throw new ConflictException(
-                        "Email is already in use.");
-            }
-
-            var customer = new Customer
-            {
-                FirstName = customerDto.FirstName,
-                LastName = customerDto.LastName,
-                PhoneNumber = customerDto.PhoneNumber,
-                Email = customerDto.Email
-            };
-
-            _context.Customers.Add(customer);
-
-            await _context.SaveChangesAsync();
-
-            return new CustomerDto
-            {
-                Id = customer.Id,
-                FirstName = customer.FirstName,
-                LastName = customer.LastName,
-                PhoneNumber = customer.PhoneNumber,
-                Email = customer.Email
-            };
+            _auditScope= auditScope;
         }
 
         // Get Customer By Id
@@ -77,7 +43,10 @@ namespace DeliveryPlatform.Service.Services
                     Id = c.Id,
                     FirstName = c.FirstName,
                     LastName = c.LastName,
-                    PhoneNumber = c.PhoneNumber,
+                    PhoneNumber = _context.Users
+                        .Where(u => u.CustomerId == c.Id)
+                        .Select(u => u.PhoneNumber)
+                        .FirstOrDefault() ?? string.Empty,
                     Email = c.Email
                 })
                 .FirstOrDefaultAsync();
@@ -102,11 +71,18 @@ namespace DeliveryPlatform.Service.Services
 
             await _resourceAuthorization.EnsureCustomerAccessAsync(id);
 
+
             var customer = await _context.Customers
                 .FirstOrDefaultAsync(c => c.Id == id);
 
             if (customer is null)
                 throw new NotFoundException("Customer not found.");
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.CustomerId == id);
+
+            if (user is null)
+                throw new NotFoundException("Customer account not found.");
 
             if (!string.IsNullOrWhiteSpace(customerDto.Email))
             {
@@ -118,20 +94,19 @@ namespace DeliveryPlatform.Service.Services
                     throw new ConflictException(
                         "Email is already in use.");
             }
-
-            customer.FirstName = customerDto.FirstName;
-            customer.LastName = customerDto.LastName;
-            customer.PhoneNumber = customerDto.PhoneNumber;
-            customer.Email = customerDto.Email;
-
-            await _context.SaveChangesAsync();
-
+            using (_auditScope.Enable())
+            {
+                customer.FirstName = customerDto.FirstName;
+                customer.LastName = customerDto.LastName;
+                customer.Email = customerDto.Email;
+                await _context.SaveChangesAsync();
+            }
             return new CustomerDto
             {
                 Id = customer.Id,
                 FirstName = customer.FirstName,
                 LastName = customer.LastName,
-                PhoneNumber = customer.PhoneNumber,
+                PhoneNumber = user.PhoneNumber ?? string.Empty,
                 Email = customer.Email
             };
         }

@@ -46,7 +46,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> VerifyOtp(
         [FromBody] VerifyOtpDto request)
     {
-        var user = await _otpService.VerifyCodeAsync(
+        var (user, signupToken) = await _otpService.VerifyCodeAsync(
             request.PhoneNumber,
             request.Code);
 
@@ -54,11 +54,13 @@ public class AuthController : ControllerBase
         {
             return Ok(new
             {
-                Message = "Phone verified. Please complete your signup."
+                Message = "Phone verified. Please complete your signup.",
+                SignupToken = signupToken
             });
         }
 
         var tokens = await _refreshTokenService.IssueTokenPairAsync(user);
+
         return Ok(new
         {
             Message = "Phone verified successfully.",
@@ -68,17 +70,17 @@ public class AuthController : ControllerBase
         });
     }
 
+
     [AllowAnonymous]
     [HttpPost("complete-signup")]
     public async Task<IActionResult> CompleteSignup(
         [FromBody] CompleteSignupDto request)
     {
         var user = await _otpService.CompleteSignupAsync(
-      request.PhoneNumber,
-      request.FirstName,
-      request.LastName,
-      request.Email);
-
+    request.SignupToken,
+    request.FirstName,
+    request.LastName,
+    request.Email);
         var tokens = await _refreshTokenService.IssueTokenPairAsync(user);
         return Ok(new
         {
@@ -148,5 +150,17 @@ public class AuthController : ControllerBase
             request.RefreshToken);
 
         return Ok(tokens);
+    }
+    [Authorize]
+    [HttpGet("me")]
+    public IActionResult GetCurrentUser()
+    {
+        return Ok(new
+        {
+            UserId = _currentUser.UserId,
+            Role = _currentUser.Role?.ToString(),
+            StoreId = _currentUser.StoreId,
+            CustomerId = _currentUser.CustomerId
+        });
     }
 }

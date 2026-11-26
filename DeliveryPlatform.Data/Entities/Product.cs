@@ -1,5 +1,7 @@
-﻿namespace DeliveryPlatform.Data.Entities
+﻿using DeliveryPlatform.Data.Auditing;
+namespace DeliveryPlatform.Data.Entities
 {
+    [AuditedIn(typeof(ProductAuditTrail))]
     public class Product : BaseEntity
     {
         public string Name { get; set; } = string.Empty;
